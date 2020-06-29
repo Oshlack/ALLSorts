@@ -1,4 +1,6 @@
-ALLSorts is a B-Cell Acute Lymphoblastic Leukemia (B-ALL) subtype classifier. From gene expression counts to over 20 subtypes and 5 meta-subtypes!
+# ALLSorts B-ALL subtype classifier
+
+ALLSorts is a B-Cell Acute Lymphoblastic Leukemia (B-ALL) subtype classifier, taking gene expression counts and making predictions across 20 subtypes and 5 meta-subtypes!
 
 Interested? Great! Please refer to the <a href="https://github.com/Oshlack/ALLSorts/wiki" target="_blank">wiki</a> for further information & documentation.
 
