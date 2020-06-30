@@ -7,3 +7,5 @@ ALLSorts is a B-Cell Acute Lymphoblastic Leukemia (B-ALL) subtype classifier, ta
 Interested? Great! Please refer to the <a href="https://github.com/Oshlack/ALLSorts/wiki" target="_blank">wiki</a> for further information & documentation.
 
 If you have any problems, let us know via <a href="https://github.com/Oshlack/ALLSorts/issues">issues</a> and we will get back to you promptly.
+
+To see what's next on the agenda, follow the (https://github.com/Oshlack/ALLSorts/projects)[Projects development].
