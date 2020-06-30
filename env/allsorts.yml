@@ -1,4 +1,4 @@
-name: allsorts_test
+name: allsorts
 channels:
   - anaconda
   - bioconda
