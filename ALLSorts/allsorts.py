@@ -81,10 +81,7 @@ def run():
             message("Prediction Mode", level=1)
             message("Loading classifier...")
             allsorts_clf = joblib.load(str(root_dir())+"/models/allsorts/allsorts.pkl.gz")
-
-            print(allsorts_clf)
-            #allsorts_clf.save(path="allsorts.pkl.gz")
-
+            
             # Create output
             output = ui.destination
 
