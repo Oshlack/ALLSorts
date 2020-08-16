@@ -2,6 +2,8 @@
 ._.DS_Store
 **/.DS_Store
 **/._.DS_Store
- __pycache__/
- *.pyc
- 
+__pycache__/
+*.pyc
+ALLSorts.egg-info/
+tools/
+
