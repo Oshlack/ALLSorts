@@ -6,4 +6,5 @@ __pycache__/
 *.pyc
 ALLSorts.egg-info/
 tools/
+.idea/
 

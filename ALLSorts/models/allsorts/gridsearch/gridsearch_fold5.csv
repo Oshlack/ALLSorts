@@ -1,2 +1,2 @@
 ,cutoff,standardisation,model,model_param,mean_score,std_score
-0,1,Scaler(scaler='std'),LogisticRegression,{'C': 0.4},0.9212443343467279,0.012529617633646795
+0,1,Scaler(scaler='std'),LogisticRegression,{'C': 0.4},0.8852671867720907,0.006577532658993912

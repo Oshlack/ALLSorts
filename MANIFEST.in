@@ -1,0 +1,4 @@
+include ALLSorts/data/*
+include ALLSorts/models/allsorts/*
+include ALLSorts/models/allsorts/comparisons/*
+include ALLSorts/models/allsorts/gridsearch/*
