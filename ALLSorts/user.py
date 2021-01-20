@@ -41,10 +41,12 @@ class UserInput:
             self.force = False if not self.input.force else True
             self.cv = 3 if not self.input.cv else int(self.input.cv)
             self.parents = False if not self.input.parents else True
+            self.ball = self.input.ball
             self._input_checks()
             self._load_samples()
         else:
-            self.cli = False
+            message("No arguments supplied. Please use allsorts --help for further information about input.")
+            sys.exit(0)
 
     def _is_cli(self):
         return len(sys.argv) > 1
@@ -121,6 +123,11 @@ class UserInput:
                          action="store_true",
                          help=("""Include parent meta-subtypes in predictions. Note: This may remove previously 
                                   unclassified samples."""))
+
+        cli.add_argument('-ball', '-b',
+                         required=False,
+                         help=("""(bool, default=True) Will include B-ALL flag in results."""))
+
 
         user_input = cli.parse_args()
         return user_input

@@ -2,3 +2,10 @@ include ALLSorts/data/*
 include ALLSorts/models/allsorts/*
 include ALLSorts/models/allsorts/comparisons/*
 include ALLSorts/models/allsorts/gridsearch/*
+include tools/*
+include tools/counts/resources/*
+include tools/counts/scripts/*
+include tools/tests/*
+include tools/tests/bam/*
+include tools/tests/fastq/*
+include tools/tests/counts/*

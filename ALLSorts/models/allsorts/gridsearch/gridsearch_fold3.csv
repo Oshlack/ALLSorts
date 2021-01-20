@@ -1,2 +1,17 @@
-,cutoff,standardisation,model,model_param,mean_score,std_score
-0,1,Scaler(scaler='std'),LogisticRegression,{'C': 0.4},0.905086866709693,0.0068980490377572035
+,centroids,chrom_feature,fusion_feature,iamp21_feature,feature_select,standardisation,train_model__hierarchy,model,model_param,mean_score,std_score
+0,CentroidCreate,True,True,True,"FeatureSelection(cutoff=1,
+                 hierarchy={'BCL2/MYC': False, 'DUX4': False,
+                            'ETV6-RUNX1 Group': {'ETV6-RUNX1': False,
+                                                 'ETV6-RUNX1-like': False},
+                            'HLF': False,
+                            'High Sig': {'High hyperdiploid': False,
+                                         'Low hyperdiploid': False,
+                                         'Near haploid': False},
+                            'IKZF1 N159Y': False, 'KMT2A Group': False,
+                            'Low hypodiploid': False, 'MEF2D': False,
+                            'NUTM1': False, 'PAX5 P80R': False,
+                            'PAX5alt': False,
+                            'Ph Group': {'Ph': False, 'Ph-like': False},
+                            'TCF3-PBX1': False, 'ZNF384 Group': False,
+                            'iAMP21': False},
+                 method='all', n_jobs=1, test=False)",Scaler(scaler='std'),hierarchy,LogisticRegression,{'C': 0.3},0.8289849547941721,0.02027278772364932

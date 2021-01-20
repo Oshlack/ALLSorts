@@ -31,7 +31,7 @@ class Scaler(BaseEstimator, TransformerMixin):
         self.options = {"std": StandardScaler(), "pwr": PowerTransformer()}
         self.scaler = scaler
 
-    def _checkInput(self, X):
+    def _check_input(self, X):
         # Prepare
         if isinstance(X, dict):
             counts = X["counts"]
@@ -44,18 +44,17 @@ class Scaler(BaseEstimator, TransformerMixin):
 
     def fit(self, X, y=False):
         self.scaled = self.options[self.scaler]
-        counts = self._checkInput(X)
+        counts = self._check_input(X)
         self.scaled = self.scaled.fit(counts, y)
         return self
 
     def transform(self, X, y=False):
-        counts = self._checkInput(X)
+
+        counts = self._check_input(X)
 
         scaled = self.scaled.transform(counts)
         scaled = pd.DataFrame(scaled, columns=counts.columns, index=counts.index)
+        scaled = scaled.fillna(0.0)
 
-        return {"genes": self.genes, "counts": scaled}
+        return scaled
 
-    def fit_transform(self, X, y=False):
-        self.fit(X)
-        return self.transform(X)

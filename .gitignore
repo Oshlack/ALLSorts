@@ -5,6 +5,6 @@
 __pycache__/
 *.pyc
 ALLSorts.egg-info/
-tools/
 .idea/
 
+ALLSorts/operations/train.grid.py

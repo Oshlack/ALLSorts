@@ -60,7 +60,6 @@ def rebuild_comparisons(allsorts_clf, probabilities, ui, size=10):
         genes = feature_selection[subtype]
         sub_genes = pd.DataFrame(clf.coef_, columns=genes)
         sub_genes = sub_genes[sub_genes != 0].dropna(axis=1)
-        print(subtype, sub_genes.transpose().abs().sort_values(by=0, ascending=False).iloc[0:50])
         chosen_genes += list(sub_genes.columns)
 
     chosen_genes = list(set(chosen_genes))

@@ -1,124 +1,312 @@
-#=======================================================================================================================
+#=============================================================================
 #
 #   ALLSorts v2 - Pre-processing Stage
 #   Author: Breon Schmidt
 #   License: MIT
 #
-#=======================================================================================================================
+#=============================================================================
 
-''' --------------------------------------------------------------------------------------------------------------------
+''' --------------------------------------------------------------------------
 Imports
----------------------------------------------------------------------------------------------------------------------'''
+---------------------------------------------------------------------------'''
 
 ''' Internal '''
 from ALLSorts.common import message
 
 ''' External '''
 from sklearn.base import BaseEstimator, TransformerMixin
-from morp import morp
 import numpy as np
+import pandas as pd
 
-
-''' --------------------------------------------------------------------------------------------------------------------
+''' --------------------------------------------------------------------------
 Classes
----------------------------------------------------------------------------------------------------------------------'''
+---------------------------------------------------------------------------'''
+
+class TMM(BaseEstimator, TransformerMixin):
+
+	"""
+	A class that represents a normalised training set of counts.
+
+	Based on the edgeR normalisation walkthrough provided by Josh Starmer (StatQuest), the extraordinary edgeR software,
+	and Dr. Belinda Phipson.
+
+	...
+
+	Attributes
+	__________
+	BaseEstimator : Scikit-Learn BaseEstimator class
+		Inherit from this class.
+	ClassifierMixin : Scikit-Learn ClassifierMixin class
+		Inherit from this class.
+	
+	Methods
+	-------
+	tmm_reference(counts)
+		Chooses the sample in the training set to use as the TMM reference.
+	scaling_factor(sample, reference)
+		Determine the scaling factor for a sample relative to the reference.
+	logCPM(counts, scaling_factors)
+		Apply a logCPM transformation of scaled counts.
+	fit(counts)
+		Choose reference and library median to normalise by.
+	transform(counts)
+		apply TMM normalisation to raw counts.
+	"""
+
+	def __init__(self):
+
+		"""
+		Initialise the class
+
+		Attributes
+		__________
+		method : str
+			The method used to normalise (currently, only TMM)
+		trained : bool
+			Whether this object has normalised the training set and stored 
+		"""
+
+		self.method = "TMM"
+		self.trained = False
+
+	def tmm_reference(self, counts):
+
+		""" Chooses sample in the supplied counts to use as the TMM reference.
+
+		Parameters
+		__________
+		counts : Pandas DataFrame
+			Gene expression counts (genes/columns x samples/rows)
+
+		"""
+
+		tmm_scaled = counts.divide(counts.sum(axis=1), axis=0)
+		quantiles_75 = tmm_scaled.quantile(0.75, axis=1)
+		quantiles_75_avg = quantiles_75.mean()
+
+		# Choose reference based on 75th quantile closest to average
+		quant_difference = (quantiles_75 - quantiles_75_avg).abs()
+		reference_sample = quant_difference.sort_values().index[0]
+		
+		return counts.loc[reference_sample]
+
+	def scaling_factor(self, sample, reference):
+
+		""" Chooses sample in the supplied counts to use as the TMM reference.
+
+		Parameters
+		__________
+		sample: Pandas Series
+			The sample which we are trying to find a scaling factor for.
+		reference: Pandas Series
+			The reference we are comparing to (found with tmm_reference())
+		"""
+
+		sample_frame = pd.DataFrame(sample, index=sample.index)
+		ref_frame = pd.DataFrame(reference, index=reference.index)
+		counts = pd.concat([sample_frame, ref_frame], join="inner", axis=1)
+		counts["multiple"] = np.array(counts.iloc[:, 0])*np.array(counts.iloc[:, 1])
+		counts = counts[counts["multiple"] > 0]
+		counts.columns = ["sample", "ref", "multiple"]
+
+		''' Normalise by library size'''
+		scaled_sample = counts["sample"]/sample.sum()
+		scaled_ref = counts["ref"]/reference.sum()
+
+		''' Remove biased genes '''
+		scaled_ratio = scaled_sample/scaled_ref
+		log_ratio = np.log2(scaled_ratio)
+		log_ratio = log_ratio.replace([np.inf, -np.inf], np.nan).dropna().sort_values()
+
+		''' Remove genes with high/low expression in both samples '''
+
+		geometric_means = np.log2(counts["multiple"])/2.0
+		geometric_means = geometric_means.replace([np.inf, -np.inf], np.nan).dropna().sort_values()
+
+		''' Now filter top/bottom by 30% and 5% respectively '''
+		drop_genes = []
+		cutoff_ratio_low = int(log_ratio.shape[0]*0.3)
+		cutoff_geo_low = int(geometric_means.shape[0]*0.05) 
+		cutoff_ratio_high = int(log_ratio.shape[0]*0.7) 
+		cutoff_geo_high = int(geometric_means.shape[0]*0.95)
+		
+		drop_genes += list(log_ratio.iloc[0:cutoff_ratio_low].index)
+		drop_genes += list(log_ratio.iloc[cutoff_ratio_high:-1].index)
+		drop_genes += list(geometric_means.iloc[0:cutoff_geo_low].index)
+		drop_genes += list(geometric_means.iloc[cutoff_geo_high:-1].index)
+
+		''' Calculate weighted average of remaining log2 ratios '''
+		scaling_factor = 2**log_ratio.drop(drop_genes).mean()
+		
+		return scaling_factor
+
+	def logCPM(self, counts, scaling_factors):
+
+		""" Apply a logCPM transformation of scaled counts.
+
+		Parameters
+		__________
+		sample: Pandas Series
+			The sample which we are trying to find a scaling factor for.
+		reference: Pandas Series
+			The reference we are comparing to (found with tmm_reference())
+		"""
+		
+		lib_sizes = counts.sum(axis=1)
+
+		lib_size_scaled = lib_sizes*scaling_factors
+		prior_count_scaled = lib_size_scaled/lib_size_scaled.mean() * 0.5
+		
+		if not self.trained:
+			self.library_median = lib_size_scaled.median()
+			self.trained = True
+			
+		lib_size_scaled = lib_size_scaled + 2*prior_count_scaled
+
+		counts_sum = counts.add(prior_count_scaled, axis=0)
+		tmm_cpm = np.log2(counts_sum.div(lib_size_scaled, axis=0)*self.library_median)
+
+		return tmm_cpm
+
+	def fit(self, counts):
+
+		"""Choose reference and library median to normalise by.
+
+		Parameters
+		__________
+		sample: Pandas Series
+			The sample which we are trying to find a scaling factor for.
+		reference: Pandas Series
+			The reference we are comparing to (found with tmm_reference())
+		"""
+
+		self.tmm_ref = self.tmm_reference(counts)
+		raw_scaling_factors = counts.apply(self.scaling_factor, axis=1, reference=self.tmm_ref)
+		self.scaling_geometric = np.exp(np.log(raw_scaling_factors).mean())
+
+		return self	
+
+	def transform(self, counts):
+
+		""" Apply TMM normalisation to raw counts. 
+
+		Parameters
+		__________
+		counts: Pandas DataFrame
+			Apply TMM normalisation to raw counts (samples/rows x genes/cols).
+		"""
+
+		raw_scaling_factors = counts.apply(self.scaling_factor, axis=1, reference=self.tmm_ref)
+		scaled_scaling_factors = raw_scaling_factors/self.scaling_geometric
+		tmm_cpm = self.logCPM(counts, scaled_scaling_factors)
+
+		return tmm_cpm
 
 class Preprocessing(BaseEstimator, TransformerMixin):
 
-    ''' Input: Raw counts
-        Output: Processed counts for input into ALLSorts
+	"""
+	A class that represents the preprocessing result on at set of counts.
 
-        Method: Filter > Normalise > Log > Scale
-    '''
+	...
 
-    def __init__(self,
-                 filter=True, min_indiv=20, min_total=100,
-                 norm="MOR",
-                 log=True,
-                 truncate=True):
+	Attributes
+	__________
+	method : str
+		The method used to normalise (currently, only TMM)
 
-        self.filter = filter
-        self.min_indiv = min_indiv
-        self.min_total = min_total
-        self.truncate = truncate
-        self.log = log
-        self.norm = norm
+	Methods
+	-------
+	filter_cpm(counts, y)
+		filter genes using a CPM cutoff (each sample avg. 10 reads).
+	fit(counts, y)
+		Get all preprocessing parameters relative to the training set.
+	transform(counts)
+		Transform input counts by parameters determined by training set.
+	fit_transform(counts, y=False)
+		Apply fit and then transform.
+	"""
 
-    def _filter(self, counts):
+	def __init__(self, filter_genes=True, norm="TMM"):
+		self.filter_genes = filter_genes
+		self.norm = norm
 
-        ''' Filter by: Max count in any sample for a gene
-                       Sum of all counts per gene
-        '''
+	def _filter(self, gene, cutoff, sample_no):
+		
+		if gene[gene > cutoff].shape[0] > sample_no:
+			return gene.name
 
-        return counts.loc[:, (counts.max(axis=0) >= self.min_indiv) &
-                             (counts.sum(axis=0) >= self.min_total)]
+	def filter_cpm(self, counts, y):
 
-    def _truncate(self, counts, transform=False):
+		cpm = counts.div(counts.sum(axis=1), 0)*1000000
+		cutoff = 10/(counts.sum(axis=1).min()/1000000)
+		min_samples = y.value_counts().min()
 
-        ''' Truncate maximum values of genes '''
+		filtered_genes = cpm.apply(self._filter, axis=0, cutoff=cutoff, sample_no=min_samples)
+		self.genes = list(filtered_genes.dropna().index)
 
-        if not transform:
-            self.ceiling = (counts.median() +
-                            3 * (counts.quantile(0.75) -
-                                 counts.quantile(0.25)))
+	def fit(self, counts, y):
 
-        return counts.clip(upper=self.ceiling, axis=1)
+		""" Get all preprocessing parameters relative to the training set.
 
-    def _normalise(self, counts, norm="MOR"):
+		Parameters
+		__________
+		counts: Pandas DataFrame
+			The training counts (samples/rows x genes/columns)
+		y: Pandas Series
+			The true labels for the training set.
+		"""
 
-        ''' Normalise by: TMM: Trimmed Mean of M-values
-                          MOR: Median of ratios method
-        '''
+		if self.filter_genes:
+			self.filter_cpm(counts, y)
+			counts = counts[self.genes]
 
-        if norm == "MOR":
-            self.normalise = morp.MORP(counts.transpose())
+		if self.norm == "TMM":
+			self.tmm_norm = TMM().fit(counts)
 
-        return self.normalise.mor.transpose()
+		return self
 
-    def fit(self, counts, y=False):
+	def transform(self, counts, y=False):
 
-        # Filter
-        if self.filter:
-            counts = self._filter(counts)
+		""" Pre-process input counts as per parameters determined by fit().
 
-        # Normalise
-        if self.norm:
-            counts = self._normalise(counts, self.norm)
+		Parameters
+		__________
+		counts: Pandas DataFrame
+			The training counts (samples/rows x genes/columns)
+		"""
 
-        # Truncate
-        if self.truncate:
-            counts = self._truncate(counts)
+		counts.index = counts.index.astype("str")
 
-        # Transform
-        if self.log:
-            counts = np.log2(counts + 1)
+		''' Filter genes '''
+		if self.filter_genes:
+			counts = counts.reindex(self.genes, axis=1)
 
-        self.genes = list(counts.columns)
+		''' Normalise with TMM '''
+		if self.norm == "TMM":
+			counts = self.tmm_norm.transform(counts)
 
-        return self
+		''' Check for missing genes '''
 
-    def transform(self, counts, y=False):
+		missing_genes = list(set(self.genes).difference(counts.columns))
+		if len(missing_genes) > 0:
+			message("Note: " + str(len(missing_genes)) +
+					" genes not found in supplied samples, filling with zeroes.\n" +
+					"This WILL impact classification performance.\n" +
+					"Follow the counts guide on Github (http://) to resolve.", level="w")
 
-        # Filter genes
-        if self.filter:
-            counts = counts.reindex(self.genes, axis=1).dropna(axis=1)
+		return counts
 
-        # Normalise
-        if self.norm:
-            counts = self.normalise.transformMor(counts.transpose()).transpose()
+	def fit_transform(self, counts, y=False):
 
-        # Truncate extreme values
-        if self.truncate:
-            counts = self._truncate(counts, transform=True)
+		""" Apply fit and then transform.
 
-        # Log
-        if self.log:
-            counts = np.log2(counts + 1)
+		Parameters
+		__________
+		counts: Pandas DataFrame
+			The training counts (samples/rows x genes/columns)
+		y: Pandas Series
+			The true labels for the training set.
+		"""
 
-        # Processed
-        return counts
-
-    def fit_transform(self, counts, y=False):
-        self.fit(counts)
-
-        return self.transform(counts)
+		self.fit(counts, y)
+		return self.transform(counts)

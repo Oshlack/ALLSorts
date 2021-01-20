@@ -1,6 +1,6 @@
 #=======================================================================================================================
 #
-#   ALLSorts v2 - On import or CLI execution
+#   ALLSorts
 #   Author: Breon Schmidt
 #   License: MIT
 #
