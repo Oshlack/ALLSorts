@@ -27,7 +27,7 @@ Functions
 
 def root() -> Path:
     """Returns project root folder."""
-    return Path(__file__).parent
+    return Path(__file__).parent.parent
 
 def user_input():
 
@@ -51,7 +51,7 @@ def user_input():
 def load_references(gtf):
 
 	if not gtf:
-		gtf = str(root())+"/genes_filtered.gtf"
+		gtf = str(root())+"/resources/genes_filtered.gtf"
 
 	gene_lookup = pd.read_csv(gtf, 
 							header=None, 

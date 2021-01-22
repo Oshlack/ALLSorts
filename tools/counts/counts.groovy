@@ -13,7 +13,7 @@
 core = System.getenv("COUNTSDIR")
 STAR = System.getenv("star")
 //SAMTOOLS = System.getenv("samtools")
-//FEATURECOUNTS = System.getenv("featurecounts")
+FEATURECOUNTS = System.getenv("featurecounts")
 
 /*===========================================================
 	Get user defined variables or define defaults
@@ -30,16 +30,12 @@ if(!binding.variables.containsKey("strand")){
 	System.exit(0)
 }
 
-if(!binding.variables.containsKey("g_mem")){
-	print("Please enter the amount of memory (bytes) for the genome generation step.'")
-	print("i.e. -p g_mem=64000000000")
-	System.exit(0)
-}
-
 if(!binding.variables.containsKey("a_mem")){
-	print("Please enter the amount of memory (bytes) for the alignment step.'")
-	print("i.e. -p g_mem=64000000000")
-	System.exit(0)
+    if((type == "fasta") || (type=="fastq")){
+        print("Please enter the amount of memory (bytes) for the alignment step.'")
+        print("i.e. -p a_mem=64000000000")
+        System.exit(0)
+    }
 }
 
 if(!binding.variables.containsKey("classify")){
@@ -63,7 +59,7 @@ if(!binding.variables.containsKey("reference")){
 }
 
 if(!binding.variables.containsKey("type")){
-	print("Please enter a value for the input format. i.e. -p type=fastq/bam'")
+	print("Please enter a value for the input format. i.e. -p type=fastq/fasta/bam'")
 	System.exit(0)
 }
 
@@ -115,6 +111,7 @@ star_align = {
 					  --runThreadN $threads
 					  --limitBAMsortRAM $a_mem 
 					  --outFileNamePrefix $prefix
+					  --chimOutType WithinBAM
 					  --outSAMtype BAM SortedByCoordinate""", align
 	}
 }
@@ -136,6 +133,7 @@ star_align_fasta = {
 					  --runThreadN $threads
 					  --limitBAMsortRAM $a_mem
 					  --outFileNamePrefix $prefix
+					  --chimOutType WithinBAM
 					  --outSAMtype BAM SortedByCoordinate""", align
 	}
 }
@@ -164,8 +162,8 @@ star_count = {
 
 feature_counts = {
 	output.dir = counts
-	transform(".bam") to ("feature_counts.csv"){
-		exec """$FEATURECOUNTS -p -t exon -F GTF -a $reference -T $threads -o $counts/counts.csv $input""", featurecounts
+	from(".bam") produce("feature_counts.csv"){
+		exec """$FEATURECOUNTS -p -t exon -F GTF -a $reference -T $threads -o $counts/feature_counts.csv $input""", featurecounts
 	}
 }
 
@@ -173,15 +171,16 @@ fc_count = {
 	output.dir = counts
 	produce ("counts.csv") {
 		exec """python $core/scripts/counts_fc.py 
-						-counts feature_counts.csv
+						-counts $counts/feature_counts.csv
 						-output $counts/counts.csv
 			""", single
 	}
 }
 
 classify = {
+    output.dir = predictions
 	from ("counts.csv") produce ("predictions.csv") {
-		exec """allsorts -s $input -d $predictions -ball True -parents""", single
+		exec """ALLSorts -s $input -d $predictions -ball True -parents""", single
 	}
 }
 
@@ -195,7 +194,7 @@ run {
     if (type == "fastq") {
 	    make_dir + format*[star_align + sam_index] + star_count + classify
 	} else if (type == "bam") {
-        make_dir + fc_count + classify
+        make_dir + feature_counts + fc_count + classify
 	} else if (type == "fasta") {
 	    make_dir + format*[star_align_fasta + sam_index] + star_count + classify
 	}

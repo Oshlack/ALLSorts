@@ -1,1 +1,0 @@
-bpipe -p results=$results -p threads=$threads -p g_mem=$mem -p a_mem=$mem -p type="fastq" -p strand="reverse" -p genome_dir=$genome_dir $COUNTSDIR/counts.groovy $hansen_samples
