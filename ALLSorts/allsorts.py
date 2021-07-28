@@ -25,6 +25,7 @@ Imports
 import time
 import joblib
 import pandas as pd
+import plotly
 
 '''  Internal '''
 from ALLSorts.common import message, root_dir
@@ -54,6 +55,10 @@ def run(ui=False):
         Carries all information required to execute ALLSorts, see UserInput class for further information.
     """
 
+    if plotly.__version__ != "4.14.3":
+        message("Incorrect Plotly version, please install version 4.14.3.")
+        sys.exit()
+
     if not ui:
         ui = UserInput()
         message(allsorts_asci)
@@ -79,6 +84,9 @@ def run(ui=False):
         allsorts_clf = load_classifier()
         allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
         allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
+
+        message("Using thresholds:", level=2)
+        message(allsorts_clf.steps[-1][-1].thresholds)
 
         run_predictions(ui, allsorts_clf)
 
@@ -176,6 +184,11 @@ def run_predictions(ui, allsorts):
     probabilities.round(3).to_csv(ui.destination + "/probabilities.csv")
     predictions.to_csv(ui.destination + "/predictions.csv")
 
+    if ui.counts:
+        message("Saving normalised counts.")
+        processed_counts = allsorts.transform(ui.samples)
+        processed_counts["counts"].to_csv(ui.destination + "/processed_counts.csv")
+
     if "B-ALL" in probabilities.columns:
         get_figures(ui.samples, allsorts, ui.destination, probabilities.drop("B-ALL", axis=1))
     else:
@@ -256,7 +269,8 @@ def get_figures(samples, allsorts, destination, probabilities, plots=["distribut
 
         if plot == "distributions":
             dist_plot = allsorts.predict_dist(probabilities, return_plot=True)
-            dist_plot.savefig(destination + "/distributions.png")
+            dist_plot.write_image(destination + "/distributions.png", width=4000, height=1500, engine="kaleido")
+            dist_plot.write_html(destination + "/distributions.html")
 
         if plot == "waterfalls":
             if "True" in probabilities.columns:
@@ -265,7 +279,8 @@ def get_figures(samples, allsorts, destination, probabilities, plots=["distribut
                 comparisons = pd.read_csv(str(root_dir()) + "/models/allsorts/comparisons.csv", index_col=0)
 
             waterfall_plot = allsorts.predict_waterfall(probabilities, compare=comparisons, return_plot=True)
-            waterfall_plot.savefig(destination + "/waterfalls.png")
+            waterfall_plot.write_image(destination + "/waterfalls.png", height=900, width=2500, engine="kaleido")
+            waterfall_plot.write_html(destination + "/waterfalls.html")
 
         if plot == "manifold":
             umap_plot = allsorts.predict_plot(samples, return_plot=True)

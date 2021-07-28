@@ -10,9 +10,8 @@
 Imports
 ---------------------------------------------------------------------------------------------------------------------'''
 
-
 '''  Internal '''
-from ALLSorts.common import message, root_dir, create_dir, _flat_hierarchy
+from ALLSorts.common import message, create_dir, _flat_hierarchy
 
 # ALLSorts pipeline and stages
 from ALLSorts.pipeline import ALLSorts
@@ -25,24 +24,29 @@ from ALLSorts.stages.hierarchical import HierarchicalClassifier
 from ALLSorts.operations.thresholds import fit_thresholds
 
 '''  External '''
-import sys, os
 from sklearn.model_selection import ParameterGrid, GridSearchCV
-from sklearn.metrics import make_scorer, precision_recall_curve, auc
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import make_scorer, precision_recall_curve, auc
 import pandas as pd
 import numpy as np
-from typing import List, Any
 
 # Models
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics.pairwise import manhattan_distances
 from sklearn.metrics.pairwise import euclidean_distances
 
 # Scoring+
-from sklearn.metrics import f1_score
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import recall_score
-from sklearn.metrics import precision_score
+from sklearn.metrics import f1_score, accuracy_score, recall_score, precision_score, balanced_accuracy_score
+
+''' --------------------------------------------------------------------------------------------------------------------
+Global Variable
+---------------------------------------------------------------------------------------------------------------------'''
+
+''' Horrifying solution, but alas, all I can think of without building my own gridsearch. '''
+fold_predictions = ""
+fold_count = 0
+grid_total = 1
+current_grid = 1
+current_cv = 1
 
 ''' --------------------------------------------------------------------------------------------------------------------
 Functions
@@ -60,118 +64,72 @@ def train(ui=False):
 
 	message("Cross Validation (this will take awhile):", level=2)
 
-	# Create results path
+	''' Create results path '''
 	search_path = ui.model_dir + "gridsearch/"
 	create_dir([ui.model_dir, search_path])
 
-	# CV results
-	subtypes = list(ui.labels.unique())
+	''' CV results storage '''
 	thresholds_cv = {}
-	results_cv = {}
-	results_cv["accuracy"] = []
-	results_cv["precision"] = []
-	results_cv["recall"] = []
-	results_cv["f1"] = []
+	results_cv = {"accuracy": [], "precision": [], "recall": [], "f1": []}
 
+	'''Prepare for CV'''
+	subtypes = list(ui.labels.unique())
+	global fold_predictions, grid_total
+	fold_predictions = pd.DataFrame(columns=["cv", "grid", "hierarchy", "standardisation", "chrom_feature",
+											 "fusion_feature", "iamp21_feature", "centroid"] +
+											subtypes + ["acc", "f1"])
+	grid_total = ui.gcv
 
-	# First we need to fight out for the model of choice
-
-
-
-	# Now we need to figure out thresholds
-
+	'''CV Loop'''
 	for fold in range(1, ui.cv + 1):
 
 		message("Fold: " + str(fold))
+
+		'''Outer loop - Fold Results'''
 		seed = np.random.randint(1, 1000)
 		x_train, x_test, y_train, y_test = train_test_split(ui.samples, ui.labels,
 															stratify=ui.labels,
 															test_size=0.2,
 															random_state=seed)
 
-		# Inner loop (hyperparameter tuning)
-		allsorts_clf_fold = _tune(ui, x_train, y_train, fold=fold)
-
+		''' Inner loop - hyperparameter tuning '''
+		allsorts_clf_fold = _tune(ui, x_train, y_train, fold=fold)  # This is the best estimator
 		probabilities = allsorts_clf_fold.predict_proba(x_test, parents=True)
 		f_hierarchy = allsorts_clf_fold.steps[-1][-1].f_hierarchy
 
-		# Optimise Prediction Thresholds
+		''' Optimise Prediction Thresholds '''
 		thresholds = fit_thresholds(probabilities, f_hierarchy, y_test)
-		allsorts_clf_fold.steps[-1][-1].thresholds = thresholds
-
 		for subtype, fold_thresh in thresholds.items():
 			if subtype in thresholds_cv.keys():
 				thresholds_cv[subtype].append(fold_thresh)
 			else:
 				thresholds_cv[subtype] = [fold_thresh]
 
-		# Score fold
+		''' Score fold '''
+		allsorts_clf_fold.steps[-1][-1].thresholds = thresholds
 		y_pred = allsorts_clf_fold.predict(x_test, parents=True)
+		results_cv = _score_fold(results_cv, y_test, y_pred, subtypes)
 
-		hierarchy = {
-			"High Sig": {
-				"High hyperdiploid": False,
-				'Low hyperdiploid': False,
-				"Near haploid": False
-			},
-			'Low hypodiploid': False,
-			'iAMP21': False,
-			'NUTM1': False,
-			'BCL2/MYC': False,
-			'TCF3-PBX1': False,
-			'MEF2D': False,
-			'HLF': False,
-			'IKZF1 N159Y': False,
-			'PAX5 P80R': False,
-			'Ph Group': {
-				"Ph-like": False,
-				"Ph": False
-			},
-			"PAX5alt": False,
-			'ETV6-RUNX1 Group': {'ETV6-RUNX1': False,
-								 'ETV6-RUNX1-like': False},
-			'ZNF384 Group': False,
-			'KMT2A Group': False,
-			'DUX4': False
-		}
+		'''Increment CV'''
+		global current_cv, current_grid
+		current_cv += 1
+		current_grid = 1
 
-		f_hierarchy = _flat_hierarchy(hierarchy, flat_hierarchy={})
-		probs = allsorts_clf_fold.predict_proba(x_test, parents=True)
-		print(probs)
-		print(f_hierarchy)
-		fold_preds(y_test, probs, f_hierarchy=f_hierarchy)
-
-		results_cv["accuracy"].append(round(accuracy_score(y_test, y_pred), 4))
-		results_cv["precision"].append(round(precision_score(y_test, y_pred,
-															 average="weighted", zero_division=0, labels=subtypes), 4))
-		results_cv["recall"].append(round(recall_score(y_test, y_pred,
-													   average="weighted", zero_division=0, labels=subtypes), 4))
-		results_cv["f1"].append(round(f1_score(y_test, y_pred,
-											   average="weighted", zero_division=0, labels=subtypes), 4))
-
-
-	# Train final model using all samples
+	''' Train final model using all samples '''
 	allsorts_clf = _tune(ui, ui.samples, ui.labels)
 
-	test = allsorts_clf.transform(ui.samples)
-	test["True"] = ui.labels
-	test["counts"].to_csv("normed_counts.csv")
+	if ui.payg:
+		fold_predictions.to_csv("fold_predictons.csv")
 
-
-	# Average thresholds
+	''' Average thresholds '''
 	thresholds = {}
 	for subtype, sub_thresh in thresholds_cv.items():
 		thresholds[subtype] = round(sum(sub_thresh) / len(sub_thresh), 4)
 
 	allsorts_clf.steps[-1][-1].thresholds = thresholds
 
-	# Save results and model
-	scores = pd.DataFrame(results_cv, index=list(range(1, ui.cv + 1)))
-	scores.to_csv(ui.model_dir+"cross_val_results.csv")
-
-	save_path_model = ui.model_dir + "allsorts.pkl.gz"
-	message("Saving model to: " + save_path_model)
-	allsorts_clf.save(path=save_path_model)
+	''' Save results and model '''
+	_save_all(results_cv, allsorts_clf, ui)
 
 
 def _tune(ui, x_train, y_train, fold="all"):
@@ -195,80 +153,67 @@ def _tune(ui, x_train, y_train, fold="all"):
 		https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
 	'''
 
-	hierarchy = {
-		"High Sig": {
-			"High hyperdiploid": False,
-			'Low hyperdiploid': False,
-			"Near haploid": False
-		},
-		'Low hypodiploid': False,
-		'iAMP21': False,
-		'NUTM1': False,
-		'BCL2/MYC': False,
-		'TCF3-PBX1': False,
-		'MEF2D': False,
-		'HLF': False,
-		'IKZF1 N159Y': False,
-		'PAX5 P80R': False,
-		'Ph Group': {
-			"Ph-like": False,
-			"Ph": False
-		},
-		"PAX5alt": False,
-		'ETV6-RUNX1 Group': {'ETV6-RUNX1': False,
-							 'ETV6-RUNX1-like': False},
-		'ZNF384 Group': False,
-		'KMT2A Group': False,
-		'DUX4': False
-	}
 
-	f_hierarchy = _flat_hierarchy(hierarchy, flat_hierarchy={})
+	''' Build up the parameter arguments. For each hierarchy, we need a new parameter dict. '''
+	allsorts_params = []
 
+	for hierarchy in ui.hierarchy:
 
-	### ADD Some features we want
-	fusion_list: List[Any] = []
-	fusion_list += ["BCR_ABL1"]
-	fusion_list += ["ETV6_RUNX1"]
-	fusion_list += ["TCF3_PBX1", "TCF3_HLF"]
+		''' Start building in the novel features '''
 
-	# Set parameters to be used in GridSearchCV
-	lr = LogisticRegression(penalty="l1", solver="liblinear", max_iter=500,
-							multi_class="auto", class_weight="balanced")
-	lr_params = [{"C": 0.3}]
-	standard_params = []
-	classifier = HierarchicalClassifier()
+		# Fusions
+		fusion_list = ["BCR_ABL1", "ETV6_RUNX1", "TCF3_PBX1", "TCF3_HLF"]
 
-	# Create parameter grid for input into GridSearchCV
-	allsorts_params = [
+		# Base Model and params
+		lr = LogisticRegression(penalty="l1", solver="liblinear", max_iter=500,
+								multi_class="auto", class_weight="balanced")
 
-		# Hierarchy
-		{
-			'standardisation': [Scaler(scaler="std")],
-			'centroids': [CentroidCreate(hierarchy=hierarchy, distance_function=euclidean_distances)],
-			'feature_select': [FeatureSelection(hierarchy=hierarchy, method="all", test=False)],
-			'feature_create__chrom_feature': [True],
-			'feature_create__iamp21_feature': [True],
-			'feature_create__fusion_feature': [True],
-			'train_model__hierarchy': [hierarchy],
-			'train_model__model': [lr],
-			'train_model__params': lr_params
-		}
+		lr_params = [{"C": 0.3}]
+		classifier = HierarchicalClassifier()
 
-	]
+		# Build a new parameter for this hierarchy
+		allsorts_params += [
+			{
+				'standardisation': [Scaler(scaler="std")],
+				'centroids': [CentroidCreate(hierarchy=hierarchy, distance_function=euclidean_distances)],
+				'feature_select': [FeatureSelection(hierarchy=hierarchy, method="all", test=False)],
+				'feature_create__chrom_feature': [True],
+				'feature_create__iamp21_feature': [True],
+				'feature_create__fusion_feature': [True],
+				'train_model__hierarchy': [hierarchy],
+				'train_model__model': [lr],
+				'train_model__params': lr_params
+			}
+		]
 
-	# Note: Once benchmarks per cpu is made, estimate time of compute and distribute it accordingly
+		if ui.baseline:
+			allsorts_params += [
+				{
+					'standardisation': ["passthrough"],
+					'centroids': ["passthrough"],
+					'feature_select': [FeatureSelection(hierarchy=hierarchy, method="all", test=False)],
+					'feature_create__chrom_feature': [False],
+					'feature_create__iamp21_feature': [False],
+					'feature_create__fusion_feature': [False],
+					'train_model__hierarchy': [hierarchy],
+					'train_model__model': [lr],
+					'train_model__params': lr_params
+				}
+			]
+
+	''' What is the most efficient way to parallelise this '''
 	training_x_models = len(list(ParameterGrid(allsorts_params)))
-	grid_search_cv = 2
 
-
-	if training_x_models*grid_search_cv >= ui.n_jobs:
+	if training_x_models*ui.gcv >= ui.n_jobs and not ui.payg:
 		grid_jobs = ui.n_jobs
 		stage_jobs = 1
+		scoring = "balanced_accuracy"
 	else:
 		grid_jobs = 1
 		stage_jobs = ui.n_jobs
+		scoring = b_accuracy
 
-	# Create Pipeline
+	''' Create Pipeline '''
 	allsorts_pipe = ALLSorts([("preprocess", Preprocessing(filter_genes=True, norm="TMM")),
 							  ("feature_create", FeatureCreation(n_jobs=stage_jobs, kernel_div=30, fusions=fusion_list)),
 							  ("standardisation", Scaler()),
@@ -276,24 +221,63 @@ def _tune(ui, x_train, y_train, fold="all"):
 							  ("centroids", CentroidCreate()),
 							  ("train_model", classifier)], verbose=ui.verbose)
 
-
-	# Check with user whether they want to train this many models
+	''' Inform the user about the number of models being trained '''
 	if fold == 1:
 		message("Important: Training " + str(training_x_models) + " models (" +
-				str(grid_search_cv * ui.cv * training_x_models) + " with cross validation).", important=True)
+				str(ui.gcv * ui.cv * training_x_models) + " with cross validation).", important=True)
 
-	# Perform Grid Search - Likely to take a lot of time.
+	''' Perform Grid Search - Likely to take some time. '''
 	allsorts_grid = GridSearchCV(allsorts_pipe, param_grid=allsorts_params,
-								 cv=grid_search_cv, n_jobs=grid_jobs,
-								 scoring="balanced_accuracy").fit(x_train, y_train)
+								 cv=ui.gcv, n_jobs=grid_jobs,
+								 scoring=scoring).fit(x_train, y_train)
 
 	grid_results = _grid_save(allsorts_grid)
 	grid_results.to_csv(ui.model_dir+"gridsearch/gridsearch_fold"+str(fold)+".csv")
 
-	# Pick the estimator that maximised the score in our gridsearchcv
+	''' Pick the estimator that maximised the score in our gridsearchcv '''
 	allsorts_clf = allsorts_grid.best_estimator_
 
 	return allsorts_clf
+
+
+def _save_all(results_cv, allsorts_clf, ui):
+
+	""" Save the scores, model, and processed counts """
+
+	'''Save Scores'''
+	scores = pd.DataFrame(results_cv, index=list(range(1, ui.cv + 1)))
+	scores.to_csv(ui.model_dir+"cross_val_results.csv")
+	save_path_model = ui.model_dir + "allsorts.pkl.gz"
+
+	'''Save Model'''
+	message("Saving model to: " + save_path_model)
+	allsorts_clf.save(path=save_path_model)
+
+	''' Take the final model and save the processed counts as a csv. '''
+	if ui.counts:
+		p_counts = allsorts_clf.transform(ui.samples)
+		p_counts["True"] = ui.labels
+		p_counts["counts"].to_csv(ui.model_dir + "normed_counts.csv")
+
+
+def _score_fold(results_cv, y_test, y_pred, subtypes):
+
+	""" Calculate four summary statistics - Accuracy, Precision, Recall, and F1 """
+
+	'''Calculate summary stats'''
+	ac = round(accuracy_score(y_test, y_pred), 4)
+	pr = round(precision_score(y_test, y_pred, average="weighted", zero_division=0, labels=subtypes), 4)
+	re = round(recall_score(y_test, y_pred, average="weighted", zero_division=0, labels=subtypes), 4)
+	f1 = round(f1_score(y_test, y_pred, average="weighted", zero_division=0, labels=subtypes), 4)
+
+	'''Add to the growing list'''
+	results_cv["accuracy"].append(ac)
+	results_cv["precision"].append(pr)
+	results_cv["recall"].append(re)
+	results_cv["f1"].append(f1)
+
+	return results_cv
+
 
 def _grid_save(grid_search):
 
@@ -335,30 +319,96 @@ def _grid_save(grid_search):
 			grid_results["mean_score"].append(mean)
 			grid_results["std_score"].append(std)
 
-	print(grid_results)
-
 	return pd.DataFrame(grid_results)
 
 
-def fold_preds(y, probabilities, f_hierarchy=False):
-	weighted_count = 0
-	no_subtypes = 0
+def b_accuracy(clf, X, y):
 
-	for subtype in f_hierarchy.keys():
+	global fold_predictions, fold_count, grid_total, current_grid, current_cv
+	subtypes = list(fold_predictions.columns)
+	new_fold = fold_count + 1
+	new_id = str(current_cv) + "_" + str(new_fold)
+	fold_count += 1
 
-		select = [subtype] if not f_hierarchy[subtype] else f_hierarchy[subtype]
+	fold_prediction = pd.DataFrame(0, columns=subtypes, index=[new_id])
+	y_pred = list(clf.predict(X))
+	y_true = y.copy()
 
-		labels = y.copy()
-		labels[labels.isin(select)] = 1
-		labels[labels != 1] = 0
+	'''Create clf string'''
+	clf_params = clf.get_params(deep=False)["steps"]
+	fold_prediction.loc[new_id, "clf"] = str(clf_params)
+	fold_prediction.loc[new_id, "grid"] = int(current_grid)
+	fold_prediction.loc[new_id, "cv"] = int(current_cv)
 
-		no_samples = labels[labels == 1].shape[0]
+	h = clf.steps[-1][-1].hierarchy
+	if not h:
+		h = "baseline"
+	fold_prediction.loc[new_id, "hierarchy"] = str(h)
 
-		precision, recall, thresh = precision_recall_curve(list(labels), probabilities[subtype])
-		weighted_count += auc(recall, precision)
-		no_subtypes += 1
+	for thing in clf_params:
 
-		print(subtype, auc(recall, precision), no_samples)
+		name = thing[0]
+		param = thing[1]
+
+		if name == "feature_create":
+			creation = str(param).split("(")[1].split(",")
+			for item in creation:
+				if "feature" in item:
+					hmm = item.replace(" ", "").replace("\n", "").replace("\t","")
+					c_name = hmm.split("=")[0]
+					c_value = hmm.split("=")[1]
+					fold_prediction.loc[new_id, c_name] = c_value
+				else:
+					continue
+		elif name == "standardisation":
+			fold_prediction.loc[new_id, "standardisation"] = str(param)
+		elif name == "centroids":
+			if param != "passthrough":
+				fold_prediction.loc[new_id, "centroid"] = "True"
+			else:
+				fold_prediction.loc[new_id, "centroid"] = "False"
+		elif name == "centroids":
+			if param != "passthrough":
+				fold_prediction.loc[new_id, "centroid"] = "True"
+			else:
+				fold_prediction.loc[new_id, "centroid"] = "False"
+
+	print(grid_total, current_grid, grid_total == current_grid)
+	if grid_total == current_grid:
+		current_grid = 1
+	else:
+		current_grid += 1
+
+	for subtype in subtypes:
+
+		if subtype in ["hierarchy", "acc", "f1", "cv", "grid", "standardisation", "chrom_feature", "fusion_feature",
+					   "iamp21_feature", "centroid"]:
+			continue
+
+		labels = pd.DataFrame(list(y_true), index=y_true.index, columns=["True"])
+		labels["Pred"] = y_pred
+		labels = labels[labels["True"] == subtype]
+		correct = labels[labels["True"] == labels["Pred"]].shape[0]
+
+		fold_prediction.loc[new_id, subtype] = str(correct) + "/" + str(labels.shape[0])
+
+	subtypes.remove("hierarchy")
+	subtypes.remove("acc")
+	subtypes.remove("f1")
+	subtypes.remove("cv")
+	subtypes.remove("grid")
+	subtypes.remove("standardisation")
+	subtypes.remove("chrom_feature")
+	subtypes.remove("fusion_feature")
+	subtypes.remove("iamp21_feature")
+	subtypes.remove("centroid")
+
+	fold_prediction.loc[new_id, "acc"] = balanced_accuracy_score(y, y_pred)
+	fold_prediction.loc[new_id, "f1"]= f1_score(y, y_pred, average="weighted", zero_division=0, labels=subtypes)
+	fold_predictions = pd.concat([fold_predictions, fold_prediction], join="inner")
+
+	print(fold_predictions.iloc[-50:])
+
+	return balanced_accuracy_score(y, y_pred)
 
 
-	return weighted_count / no_subtypes

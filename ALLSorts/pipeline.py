@@ -19,12 +19,9 @@ from ALLSorts.common import _flat_hierarchy, message, root_dir
 from sklearn.pipeline import Pipeline
 from sklearn.base import clone
 import joblib
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import numpy as np
 import pandas as pd
-
-import time
+import plotly.express as px
+from string import ascii_lowercase
 
 ''' --------------------------------------------------------------------------------------------------------------------
 Global Variables
@@ -259,50 +256,68 @@ class ALLSorts(Pipeline):
 
 		"""
 
-		hierarchy = self.steps[-1][-1].hierarchy
-		f_hierarchy = self._get_flat_hierarchy(hierarchy)
+		'''These should not be hard coded here, but... c'mon. I'm doing OK, give me a break.'''
+
+		order = ["High Sig", "High hyperdiploid", 'Low hyperdiploid', "Near haploid", 'Low hypodiploid', 'Ph Group',
+					"Ph-like", "Ph", "PAX5alt", 'ETV6-RUNX1 Group', 'ETV6-RUNX1', 'ETV6-RUNX1-like', 'KMT2A Group',
+					'TCF3-PBX1', 'DUX4', 'iAMP21', 'NUTM1', 'BCL2/MYC', 'MEF2D', 'HLF', 'IKZF1 N159Y', 'PAX5 P80R',
+					'ZNF384 Group']
+
+		parents = {"Ph Group": ["Ph", "Ph-like"],
+				   "ETV6-RUNX1 Group": ["ETV6-RUNX1", "ETV6-RUNX1-like"],
+				   "High Sig": ["Low hyperdiploid", "High hyperdiploid", "Near haploid"]}
+
+		'''Now, on with the show!'''
+
 		thresholds = self.steps[-1][-1].thresholds
 		probabilities = predicted_proba.copy()
-
-		drop = ["Pred", "True"] if "True" in probabilities.columns else ["Pred"]
-
-		''' Create prob. distribution for each subtype '''
-		subtypes = probabilities.drop(drop, axis=1).columns.to_list()
-		fig, ax = plt.subplots(figsize=(plot_width, plot_height))
+		x = []
+		y = []
+		c = []
+		sample_id = []
+		true = []
+		pred = []
 
 		if "True" not in probabilities.columns:
 			probabilities["True"] = ""
 
-		for i in range(0, len(subtypes)):
+		for i, values in probabilities.drop(["Pred", "True"],  axis=1).iteritems():
 
-			pos = i + 1
-			select = [subtypes[i]] if f_hierarchy[subtypes[i]] is False else f_hierarchy[subtypes[i]]
+			y += list(values)
+			x += [i] * values.shape[0]
+			sample_id += list(values.index)
 
-			''' Mark subtypes positive if required '''
-			true_subtype = probabilities.loc[probabilities["True"].isin(select), subtypes[i]]
-			other_subtype = probabilities.loc[~probabilities["True"].isin(select), subtypes[i]]
+			if i in parents.keys():
+				labels = probabilities["True"].isin(parents[i])
+			else:
+				labels = probabilities["True"] == i
 
-			''' Plot both positive and negative '''
-			x_jitter = np.random.uniform(pos - 0.25, pos, other_subtype.shape[0])
-			ax.scatter(x=x_jitter, y=other_subtype.values, c="#333333", alpha=0.8)
-			x_jitter = np.random.uniform(pos, pos + 0.25, true_subtype.shape[0])
-			ax.scatter(x=x_jitter, y=true_subtype.values, c="#c0392b", alpha=0.8)
+			true += list(probabilities["True"])
+			pred += list(probabilities["Pred"])
+			c += list(labels)
 
-			''' Add thresholds '''
-			thresh_x = np.linspace(pos - 0.25, pos + 0.25, 100)
-			ax.plot(thresh_x, [thresholds[subtypes[i]]] * len(thresh_x), c="#22a6b3")
+		title = "Probability Distributions (" + str(probabilities.shape[0]) + " Samples)"
+		fig = px.strip(x=x, y=y, color=c,
+					color_discrete_map={True: "#DD4075", False: "#164EB6"},
+					hover_data={"sample": sample_id, "new_pred": pred},
+					labels=dict(x="Subtype", y="Probability"), title=title).update_traces(
+						jitter=1, marker={"size": 11, "line": {"color": "rgba(0,0,0,0.4)", "width":1}})
 
-		''' Finalise plot '''
-		ax.set_xticks(range(1, len(subtypes) + 1))
-		ax.set_xticklabels(subtypes, rotation='vertical')
-		ax.set_ylabel("Probability", fontsize=16)
-		ax.set_xlabel("Subtypes", fontsize=16)
-		plt.tight_layout()
+		fig.update_layout(font_size=42, title_font_size=72, yaxis={"dtick": 0.1},
+						  plot_bgcolor='rgba(0,0,0,0)')
+
+		fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#dadada')
+
+		for i in range(0, len(order)):
+			fig.add_shape({'type': "line", 'x0': i - 0.5, 'x1': i + 0.5,
+						   'y0': thresholds[order[i]], 'y1': thresholds[order[i]],
+						   'line': {'color': '#03CEA4', 'width': 3}})
 
 		if return_plot:
-			return plt
+			return fig
 		else:
-			plt.show()
+			fig.show()
+
 
 	def predict_waterfall(self, predicted_proba, compare=False, return_plot=False):
 
@@ -351,51 +366,72 @@ class ALLSorts(Pipeline):
 
 		'''Finally, plot'''
 		waterfall_plot = self._plot_waterfall(prediction_order)
-		plt.tight_layout()
 
 		if return_plot:
 			return waterfall_plot
 		else:
-			plt.show()
+			waterfall_plot.show()
 
 	def _plot_waterfall(self, prediction_order):
 
-
 		meta_subtypes = ["High Sig", "ETV6-RUNX1 Group", "Ph Group"]
-		prediction_order = prediction_order[~prediction_order["Pred"].isin(meta_subtypes)] # Not required
+		waterfalls = prediction_order[~prediction_order["Pred"].isin(meta_subtypes)]
+		no_samples = waterfalls[waterfalls["True"] == "Other"].shape[0]
+		title = "Waterfall Distributions (" + str(no_samples) + " Samples)"
+		order = list(waterfalls["Pred"].unique())
+		if "Unclassified" in order:
+			order.remove("Unclassified")
+		thresholds = self.steps[-1][-1].thresholds
 
-		ax = prediction_order.drop(["Pred", "True"], axis=1).plot(
-			kind='bar', color=["r", "#555555"], stacked=True,
-			figsize=(16, 6), align='edge', width=1)
+		'''Main Plot'''
+		plt = px.bar(x=waterfalls.index, y=waterfalls["PPred"], color=waterfalls["True"],
+					color_discrete_map=c_subtypes,
+					hover_data={"Prediction": waterfalls["Pred"], "Ground Truth": waterfalls["True"]},
+					labels=dict(x="Subtype", y="Probability"), title=title)
+		plt.update_xaxes(categoryarray=waterfalls.index)
+		plt.update_traces(marker={"line": {"width": 0}})
 
-		# Setup colour bar underneath plot
-		x_ticks = ax.get_xticks()
-		y_ticks = ax.get_yticks()
+		'''Thresholds'''
+		prev = -0.5
+		for i in range(0, len(order)):
+			no_samples = waterfalls[waterfalls["Order"] == order[i]].shape[0]
+			plt.add_shape({'type': "line", 'x0': prev, 'x1': no_samples + prev,
+						   'y0': thresholds[order[i]], 'y1': thresholds[order[i]],
+						   'line': {'color': '#ffffff', 'width': 2}})
 
-		true_labels = prediction_order["True"]
-		predicted_labels = prediction_order["Pred"]
+			plt.add_shape({'type': "line", 'x0': prev, 'x1': no_samples + prev,
+						   'y0': -0.05, 'y1': -0.05,
+						   'line': {'color': c_subtypes[order[i]], 'width': 15}})
 
-		for i, x_tick in enumerate(x_ticks[:-1]):
+			prev = prev + no_samples
 
-			ax.text(x_tick + 0.4, y_ticks[0] - 0.05, " ", size=0,
-					bbox={'fc': c_subtypes[predicted_labels[i]], 'pad': 5,
-						  "edgecolor": c_subtypes[predicted_labels[i]]})
+		'''Colour the unclassifieds'''
+		for sample, values in waterfalls.iterrows():
+			if values["Pred"] == "Unclassified":
+				pos = waterfalls.index.get_loc(sample)
+				plt.add_shape({'type': "line", 'x0': pos - 1, 'x1': pos,
+							   'y0': -0.05, 'y1': -0.05, "line": {"width": 0},
+							   'line': {'color': "#ffffff", 'width': 35}})
 
-		# Setup legend
-		patchList = [mpatches.Patch(color=c_subtypes[subtype], label=subtype)
-					 for subtype in c_subtypes if subtype in list(predicted_labels)]
+			elif values["PPred"] < thresholds[values["Pred"]]:
+				pos = waterfalls.index.get_loc(sample)
+				plt.add_shape({'type': "line", 'x0': pos - 1, 'x1': pos,
+							   'y0': -0.05, 'y1': -0.05, "line": {"width": 0},
+							   'line': {'color': "#ffffff", 'width': 35}})
 
-		plt.legend(handles=patchList, loc="upper center", prop={'size': 9}, ncol=5,
-				   bbox_to_anchor=(0.5, -0.1), fancybox=True)
-		plt.gca().axes.get_xaxis().set_visible(False)
+		'''Formatting'''
+		plt.update_layout(font_size=24, title_font_size=40,
+						  yaxis={"dtick": 0.1}, plot_bgcolor='#444444')
+		plt.update_yaxes(showgrid=False)
+		plt.update_xaxes(showticklabels=False)
 
-		# Set true colours
-		for i in range(0, len(list(predicted_labels))):
-			ax.get_children()[i].set_color(c_subtypes[predicted_labels[i]])
-			ax.get_children()[i].set_color(c_subtypes[true_labels[i]])
+		plt.add_annotation(x=0, y=-0.03, yref="paper", xref="paper",
+						   text="Prediction", font_size=24,
+						   showarrow=False)
 
-		ax.set_ylabel("Probability", fontsize=16)
-		ax.set_xlabel("Subtypes", fontsize=16)
+		plt.add_shape({'type': "line", 'x0': -0.001, 'x1': 1.001, "xref": "paper",
+					   "layer": "below", 'y0': -0.05, 'y1': -0.05, "line": {"width": 0},
+					   'line': {'color': "#ffffff", 'width': 35}})
 
 		return plt
 
@@ -407,7 +443,15 @@ class ALLSorts(Pipeline):
 		adj_predicted_proba["Order"] = adj_predicted_proba["Pred"]
 		for sample, probs in adj_predicted_proba.iterrows():
 			if "," in probs["Pred"]:
-				adj_predicted_proba.loc[sample, "Order"] = "Multi"
+				calls = probs["Pred"].split(",")
+				alpha = ascii_lowercase[:len(calls)]
+				i = 0
+				for call in calls:
+					adj_predicted_proba.loc[sample + "_" + alpha[i]] = adj_predicted_proba.loc[sample]
+					adj_predicted_proba.loc[sample+"_"+alpha[i], ["Pred", "Order"]] = call
+					i += 1
+				adj_predicted_proba.drop(sample, inplace=True)
+
 			elif probs["Pred"] == "Unclassified":
 				max_prob = probs.drop(["True", "Pred", "Order"]).sort_values(ascending=False).index[0]
 				adj_predicted_proba.loc[sample, "Order"] = max_prob
@@ -420,19 +464,9 @@ class ALLSorts(Pipeline):
 		prediction_order = pd.DataFrame(columns=predicted_proba.columns)
 
 		for subtype in predicted_proba["Order"].value_counts().index:
-
 			sub_probs = predicted_proba[predicted_proba["Order"] == subtype]
-			if subtype == "Multi":
-				multi = sub_probs
-				continue
-
 			sub_probs = sub_probs.sort_values(by=subtype, ascending=False)
 			prediction_order = pd.concat([prediction_order, sub_probs], join="inner")
-
-
-		if 'multi' in locals():
-			prediction_order = pd.concat([prediction_order, multi], join="inner")
-			prediction_order = prediction_order[prediction_order["Order"] != "Multi"]
 
 		prediction_order["PPred"] = ""
 		prediction_order["POther"] = ""
@@ -441,7 +475,11 @@ class ALLSorts(Pipeline):
 			prediction_order.loc[sample, "PPred"] = prediction_order.loc[sample, pred]
 			prediction_order.loc[sample, "POther"] = 1 - float(prediction_order.loc[sample, "PPred"])
 
-		prediction_order = prediction_order[["Pred", "True", "PPred", "POther"]]
+		prediction_order = prediction_order[["Pred", "True", "PPred", "POther", "Order"]]
+
+		prediction_order = prediction_order[~prediction_order["Order"].isin(
+			["Ph Group", "ETV6-RUNX1 Group", "High Sig"]
+		)]
 
 		return prediction_order
 

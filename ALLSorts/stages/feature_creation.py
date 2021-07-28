@@ -175,7 +175,7 @@ class FeatureCreation(BaseEstimator, TransformerMixin):
 				chrom_features["chr" + chrom_] = 0.0
 
 
-			# For general
+		# For general
 		chrom_high = []
 		chrom_low = []
 
@@ -229,7 +229,6 @@ class FeatureCreation(BaseEstimator, TransformerMixin):
 		bin_medians["IAMP21_ratio"] = iamp21_ratio
 
 		return bin_medians
-
 
 	def _immunoFeature(self, counts):
 

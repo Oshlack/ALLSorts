@@ -119,7 +119,6 @@ class TMM(BaseEstimator, TransformerMixin):
 		log_ratio = log_ratio.replace([np.inf, -np.inf], np.nan).dropna().sort_values()
 
 		''' Remove genes with high/low expression in both samples '''
-
 		geometric_means = np.log2(counts["multiple"])/2.0
 		geometric_means = geometric_means.replace([np.inf, -np.inf], np.nan).dropna().sort_values()
 
@@ -200,7 +199,7 @@ class TMM(BaseEstimator, TransformerMixin):
 		scaled_scaling_factors = raw_scaling_factors/self.scaling_geometric
 		tmm_cpm = self.logCPM(counts, scaled_scaling_factors)
 
-		return tmm_cpm
+		return tmm_cpm, scaled_scaling_factors
 
 class Preprocessing(BaseEstimator, TransformerMixin):
 
@@ -280,13 +279,12 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 		''' Filter genes '''
 		if self.filter_genes:
 			counts = counts.reindex(self.genes, axis=1)
-
+ 
 		''' Normalise with TMM '''
 		if self.norm == "TMM":
-			counts = self.tmm_norm.transform(counts)
+			counts, scaled_scaling_factors = self.tmm_norm.transform(counts)
 
 		''' Check for missing genes '''
-
 		missing_genes = list(set(self.genes).difference(counts.columns))
 		if len(missing_genes) > 0:
 			message("Note: " + str(len(missing_genes)) +

@@ -5,7 +5,7 @@ modules = ["ALLSorts." + p for p in sorted(find_packages("./ALLSorts"))]
 
 setup(
     name="ALLSorts",
-    version="0.1.1",
+    version="0.1.3",
     description="BALL Subtype Classifier/Investigator.",
     url="https://github.com/breons/ALLSorts",
     author="Breon Schmidt",
@@ -21,6 +21,8 @@ setup(
         "scikit-learn==0.22.1",
         "scipy==1.4.1",
         "umap-learn==0.4.4",
+        "plotly==4.14.3",
+        "kaleido==0.1.0"
     ],
     entry_points={
           "console_scripts": ["ALLSorts=ALLSorts.allsorts:run"]
