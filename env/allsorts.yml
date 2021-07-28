@@ -16,5 +16,3 @@ dependencies:
   - setuptools=46.4.0
   - umap-learn=0.4.4
   - plotly==4.14.3
-  - kaleido==0.1.0
-  - requests==2.24.0
