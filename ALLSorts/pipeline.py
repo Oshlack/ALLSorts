@@ -483,6 +483,7 @@ class ALLSorts(Pipeline):
 
 		return prediction_order
 
+	'''
 	def predict_plot(self, X, return_plot=False):
 
 		"""
@@ -534,6 +535,7 @@ class ALLSorts(Pipeline):
 			return plt
 		else:
 			plt.show()
+	'''
 
 	def clone(self):
 

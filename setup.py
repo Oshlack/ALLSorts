@@ -5,7 +5,7 @@ modules = ["ALLSorts." + p for p in sorted(find_packages("./ALLSorts"))]
 
 setup(
     name="ALLSorts",
-    version="0.1.3",
+    version="0.2.1",
     description="BALL Subtype Classifier/Investigator.",
     url="https://github.com/breons/ALLSorts",
     author="Breon Schmidt",

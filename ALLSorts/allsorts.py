@@ -26,6 +26,7 @@ import time
 import joblib
 import pandas as pd
 import plotly
+import sys
 
 '''  Internal '''
 from ALLSorts.common import message, root_dir
@@ -282,10 +283,11 @@ def get_figures(samples, allsorts, destination, probabilities, plots=["distribut
             waterfall_plot.write_image(destination + "/waterfalls.png", height=900, width=2500, engine="kaleido")
             waterfall_plot.write_html(destination + "/waterfalls.html")
 
+        '''
         if plot == "manifold":
             umap_plot = allsorts.predict_plot(samples, return_plot=True)
             umap_plot.savefig(destination + "/manifold.png")
-
+        '''
 
 ''' --------------------------------------------------------------------------------------------------------------------
 Global Variables
