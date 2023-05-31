@@ -14,7 +14,7 @@ setup(
     zip_safe=False,
     include_package_data=True,
     install_requires=[
-        "joblib==0.15.1",
+        "joblib==1.2.0",
         "matplotlib==3.2.1",
         "scikit-learn==0.22.1",
         "umap-learn==0.4.4",
