@@ -16,7 +16,7 @@ setup(
     install_requires=[
         "joblib==0.15.1",
         "matplotlib==3.2.1",
-        "scikit-learn==0.22.1",
+        "scikit-learn==1.5.0",
         "umap-learn==0.4.4",
         "plotly==4.14.3",
         "kaleido==0.1.0"
