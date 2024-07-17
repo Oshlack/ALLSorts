@@ -19,7 +19,8 @@ setup(
         "scikit-learn==0.22.1",
         "umap-learn==0.4.4",
         "plotly==4.14.3",
-        "kaleido==0.1.0"
+        "kaleido==0.1.0",
+        "pandas==1.0.3"
     ],
     entry_points={
           "console_scripts": ["ALLSorts=ALLSorts.allsorts:run"]
