@@ -233,7 +233,12 @@ class FeatureCreation(BaseEstimator, TransformerMixin):
 	def _immunoFeature(self, counts):
 
 		all_genes = ["CD19", "CD34", "CD22", "DNTT", "CD79A"]
-		all_immuno = pd.DataFrame(counts[all_genes].sum(axis=1), columns=["B-ALL"], index=counts.index)
+		try:
+			all_immuno = pd.DataFrame(counts[all_genes].sum(axis=1), columns=["B-ALL"], index=counts.index)
+		except KeyError:
+			# column of 0's if any or all of immuno genes are missing
+			# TODO print warning
+			all_immuno =  pd.DataFrame(0, columns=["B-ALL"], index=counts.index)
 
 		return all_immuno
 
