@@ -10,6 +10,8 @@
 Imports
 ---------------------------------------------------------------------------------------------------------------------'''
 
+import os
+
 '''  Internal '''
 from ALLSorts.common import message, create_dir, _flat_hierarchy
 
@@ -65,7 +67,7 @@ def train(ui=False):
 	message("Cross Validation (this will take awhile):", level=2)
 
 	''' Create results path '''
-	search_path = ui.model_dir + "gridsearch/"
+	search_path = os.path.join(ui.model_dir, "gridsearch")
 	create_dir([ui.model_dir, search_path])
 
 	''' CV results storage '''
@@ -246,8 +248,8 @@ def _save_all(results_cv, allsorts_clf, ui):
 
 	'''Save Scores'''
 	scores = pd.DataFrame(results_cv, index=list(range(1, ui.cv + 1)))
-	scores.to_csv(ui.model_dir+"cross_val_results.csv")
-	save_path_model = ui.model_dir + "allsorts.pkl.gz"
+	scores.to_csv(os.path.join(ui.model_dir, "cross_val_results.csv"))
+	save_path_model = os.path.join(ui.model_dir, "allsorts.pkl.gz")
 
 	'''Save Model'''
 	message("Saving model to: " + save_path_model)
@@ -257,7 +259,7 @@ def _save_all(results_cv, allsorts_clf, ui):
 	if ui.counts:
 		p_counts = allsorts_clf.transform(ui.samples)
 		p_counts["True"] = ui.labels
-		p_counts["counts"].to_csv(ui.model_dir + "normed_counts.csv")
+		p_counts["counts"].to_csv(os.path.join(ui.model_dir, "normed_counts.csv"))
 
 
 def _score_fold(results_cv, y_test, y_pred, subtypes):

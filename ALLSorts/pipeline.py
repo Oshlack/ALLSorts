@@ -512,7 +512,7 @@ class ALLSorts(Pipeline):
 		# TODO: This is a hack to get the comparison directory. 
 		# This should be the comparision results from retrained models
 		if not comparison_dir:
-			comparison_dir = str(root_dir()) + "/models/allsorts/comparisons"
+			comparison_dir = os.path.join(str(root_dir()), "models", "allsorts", "comparisons")
 
 		plt.figure(figsize=(20, 10))
 		u = joblib.load(os.path.join(comparison_dir, "umap.sav"))

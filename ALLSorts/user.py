@@ -34,11 +34,13 @@ class UserInput:
             ''' Data '''
             self.samples = self.input.samples
             self.labels = self.input.labels if self.input.labels else False
+            
+            '''Model Directory''' # This is going to be used in both training and prediction mode
+            self.model_dir = str(root_dir())+"/models/allsorts/" if not self.input.model_dir else self.input.model_dir
 
             '''Prediction Parameters '''
             self.parents = False if not self.input.parents else True
             self.ball = self.input.ball
-            self.model_dir = str(root_dir())+"/models/allsorts/" if not self.input.model_dir else self.input.model_dir
             self.destination = False if not self.input.destination else self.input.destination
 
             '''Training Parameters'''
@@ -118,7 +120,8 @@ class UserInput:
 
         cli.add_argument('-model_dir',
                          required=False,
-                         help=("""Directory for a new model. -train -t flag must be set."""))
+                         help=("""Directory for a new model in training mode, 
+                               or directory for a pre-trained model in prediction mode."""))
 
         cli.add_argument('-njobs', '-j',
                          required=False,

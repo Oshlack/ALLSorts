@@ -120,9 +120,9 @@ def load_classifier(
     """
     if not ui:
         if not path:
-            path = str(root_dir()) + "/models/allsorts/allsorts.pkl.gz"
+            path = os.path.join(str(root_dir()), "models", "allsorts", "allsorts.pkl.gz")
     else:
-        path = ui.model_dir + "/allsorts.pkl.gz"
+        path = os.path.join(ui.model_dir, "allsorts.pkl.gz")
     message(f"Loading classifier from {path}...")
     allsorts_clf = joblib.load(path)
 
@@ -192,13 +192,13 @@ def run_predictions(ui, allsorts):
     if not isinstance(ui.labels, bool):
         probabilities["True"] = ui.labels
 
-    probabilities.round(3).to_csv(ui.destination + "/probabilities.csv")
-    predictions.to_csv(ui.destination + "/predictions.csv")
+    probabilities.round(3).to_csv(os.path.join(ui.destination, "probabilities.csv"))
+    predictions.to_csv(os.path.join(ui.destination, "predictions.csv"))
 
     if ui.counts:
         message("Saving normalised counts.")
         processed_counts = allsorts.transform(ui.samples)
-        processed_counts["counts"].to_csv(ui.destination + "/processed_counts.csv")
+        processed_counts["counts"].to_csv(os.path.join(ui.destination, "processed_counts.csv"))
 
     if "B-ALL" in probabilities.columns:
         get_figures(
@@ -303,8 +303,8 @@ def get_figures(
 
         if plot == "distributions":
             dist_plot = allsorts.predict_dist(probabilities, return_plot=True)
-            dist_plot.write_image(destination + "/distributions.png", width=4000, height=1500, engine="kaleido")
-            dist_plot.write_html(destination + "/distributions.html")
+            dist_plot.write_image(os.path.join(destination, "distributions.png"), width=4000, height=1500, engine="kaleido")
+            dist_plot.write_html(os.path.join(destination, "distributions.html"))
 
         if plot == "waterfalls":
             if "True" in probabilities.columns:
@@ -313,12 +313,12 @@ def get_figures(
                 comparisons = pd.read_csv(os.path.join(models_dir, "comparisons.csv"), index_col=0)
 
             waterfall_plot = allsorts.predict_waterfall(probabilities, compare=comparisons, return_plot=True)
-            waterfall_plot.write_image(destination + "/waterfalls.png", height=900, width=2500, engine="kaleido")
-            waterfall_plot.write_html(destination + "/waterfalls.html")
+            waterfall_plot.write_image(os.path.join(destination, "waterfalls.png"), height=900, width=2500, engine="kaleido")
+            waterfall_plot.write_html(os.path.join(destination, "waterfalls.html"))
 
         if plot == "manifold":
             umap_plot = allsorts.predict_plot(samples, return_plot=True, comparison_dir=comparison_dir)
-            umap_plot.savefig(destination + "/manifold.png")
+            umap_plot.savefig(os.path.join(destination, "manifold.png"))
 
 
 ''' --------------------------------------------------------------------------------------------------------------------
