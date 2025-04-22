@@ -28,6 +28,7 @@ import time
 import joblib
 import pandas as pd
 import plotly
+from typing import Optional
 
 '''  Internal '''
 from ALLSorts.common import message, root_dir
@@ -75,7 +76,7 @@ def run(ui=False):
     elif ui.comparison:
         message("Rebuilding Comparisons", level=1)
 
-        allsorts_clf = load_classifier(path=ui.model_path)
+        allsorts_clf = load_classifier(ui=ui)
         allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
         allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
 
@@ -84,7 +85,7 @@ def run(ui=False):
     else:
         message("Prediction Mode", level=1)
 
-        allsorts_clf = load_classifier(path=ui.model_path)
+        allsorts_clf = load_classifier(ui=ui)
         allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
         allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
 
@@ -93,7 +94,10 @@ def run(ui=False):
 
         run_predictions(ui, allsorts_clf)
 
-def load_classifier(path=False):
+def load_classifier(
+        ui: Optional[UserInput] = None,
+        path=False
+        ):
 
     """
     Load the ALLSorts classifier from a pickled file.
@@ -102,6 +106,9 @@ def load_classifier(path=False):
 
     Parameters
     __________
+    ui : UserInput
+        UserInput object, carries all information required to execute ALLSorts, 
+        see UserInput class for further information.
     path : str
         Path to a pickle object that holds the ALLSorts model.
         Default: "/models/allsorts/allsorts.pkl.gz"
@@ -111,10 +118,11 @@ def load_classifier(path=False):
     allsorts_clf : ALLSorts object
         ALLSorts object, unpacked, ready to go.
     """
-
-    if not path:
-        path = str(root_dir()) + "/models/allsorts/allsorts.pkl.gz"
-
+    if not ui:
+        if not path:
+            path = str(root_dir()) + "/models/allsorts/allsorts.pkl.gz"
+    else:
+        path = ui.model_dir + "/allsorts.pkl.gz"
     message(f"Loading classifier from {path}...")
     allsorts_clf = joblib.load(path)
 
