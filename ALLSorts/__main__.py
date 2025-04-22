@@ -10,7 +10,14 @@
 Imports
 ---------------------------------------------------------------------------------------------------------------------'''
 
-import allsorts
+import os
+import sys
+
+# Add the package directory to Python path for direct execution
+package_dir = os.path.abspath(os.path.dirname(__file__))
+sys.path.insert(0, package_dir)
+
+from ALLSorts import allsorts
 
 ''' --------------------------------------------------------------------------------------------------------------------
 Run
