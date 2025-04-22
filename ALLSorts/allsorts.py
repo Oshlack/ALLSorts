@@ -21,7 +21,9 @@
 Imports
 ---------------------------------------------------------------------------------------------------------------------"""
 
+
 ''' External '''
+import os
 import time
 import joblib
 import pandas as pd
@@ -32,6 +34,7 @@ from ALLSorts.common import message, root_dir
 from ALLSorts.operations.comparisons import rebuild_comparisons
 from ALLSorts.user import UserInput
 from ALLSorts.operations.train import train
+from ALLSorts.pipeline import ALLSorts as allsorts_object
 
 ''' --------------------------------------------------------------------------------------------------------------------
 Functions
@@ -112,7 +115,7 @@ def load_classifier(path=False):
     if not path:
         path = str(root_dir()) + "/models/allsorts/allsorts.pkl.gz"
 
-    message("Loading classifier...")
+    message(f"Loading classifier from {path}...")
     allsorts_clf = joblib.load(path)
 
     return allsorts_clf
@@ -190,9 +193,23 @@ def run_predictions(ui, allsorts):
         processed_counts["counts"].to_csv(ui.destination + "/processed_counts.csv")
 
     if "B-ALL" in probabilities.columns:
-        get_figures(ui.samples, allsorts, ui.destination, probabilities.drop("B-ALL", axis=1))
+        get_figures(
+            allsorts=allsorts,
+            samples=ui.samples,
+            destination=ui.destination,
+            models_dir=ui.models_dir,
+            probabilities=probabilities.drop("B-ALL", axis=1),
+            plots=["distributions", "waterfalls"],
+        )
     else:
-        get_figures(ui.samples, allsorts, ui.destination, probabilities)
+        get_figures(
+            allsorts=allsorts,
+            samples=ui.samples,
+            destination=ui.destination,
+            models_dir=ui.models_dir,
+            probabilities=probabilities,
+            plots=["distributions", "waterfalls"],
+        )
 
     message("Finished. Thanks for using ALLSorts!")
 
@@ -237,7 +254,15 @@ def get_predictions(samples, allsorts, labels=False, parents=False):
     return predictions, probabilities
 
 
-def get_figures(samples, allsorts, destination, probabilities, plots=["distributions", "waterfalls"]):
+def get_figures(
+        allsorts: allsorts_object,
+        samples,
+        destination,
+        models_dir,
+        probabilities,
+        comparison_dir=False,
+        plots=["distributions", "waterfalls"],
+):
 
     """
     Make figures of the results.
@@ -250,6 +275,8 @@ def get_figures(samples, allsorts, destination, probabilities, plots=["distribut
         Pandas DataFrame that represents the raw counts of your samples (rows) x genes (columns)).
     destination : str
         Location of where the results should be saved.
+    models_dir : str
+        Location of the models directory.
     probabilities : Pandas DataFrame
         The result of running the get_predictions(samples, labels=False, parents=False) function.
         See function for further usage.
@@ -264,7 +291,6 @@ def get_figures(samples, allsorts, destination, probabilities, plots=["distribut
     """
 
     message("Saving figures...")
-
     for plot in plots:
 
         if plot == "distributions":
@@ -276,14 +302,14 @@ def get_figures(samples, allsorts, destination, probabilities, plots=["distribut
             if "True" in probabilities.columns:
                 comparisons = False
             else:
-                comparisons = pd.read_csv(str(root_dir()) + "/models/allsorts/comparisons.csv", index_col=0)
+                comparisons = pd.read_csv(os.path.join(models_dir, "comparisons.csv"), index_col=0)
 
             waterfall_plot = allsorts.predict_waterfall(probabilities, compare=comparisons, return_plot=True)
             waterfall_plot.write_image(destination + "/waterfalls.png", height=900, width=2500, engine="kaleido")
             waterfall_plot.write_html(destination + "/waterfalls.html")
 
         if plot == "manifold":
-            umap_plot = allsorts.predict_plot(samples, return_plot=True)
+            umap_plot = allsorts.predict_plot(samples, return_plot=True, comparison_dir=comparison_dir)
             umap_plot.savefig(destination + "/manifold.png")
 
 

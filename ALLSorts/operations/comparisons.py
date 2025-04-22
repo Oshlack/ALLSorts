@@ -1,18 +1,18 @@
-#=======================================================================================================================
+# =======================================================================================================================
 #
 #   ALLSorts v2 - Rebuild comparisons for visualisations
 #   Author: Breon Schmidt
 #   License: MIT
 #
-#=======================================================================================================================
+# =======================================================================================================================
 
 ''' --------------------------------------------------------------------------------------------------------------------
 Imports
 ---------------------------------------------------------------------------------------------------------------------'''
+import os
 
 ''' Internal '''
-from ALLSorts.common import root_dir
-
+from ALLSorts.user import UserInput
 ''' External '''
 import numpy as np
 import pandas as pd
@@ -23,7 +23,12 @@ from umap import UMAP
 Functions
 ---------------------------------------------------------------------------------------------------------------------'''
 
-def rebuild_comparisons(allsorts_clf, probabilities, ui, size=10):
+def rebuild_comparisons(
+        allsorts_clf,
+        probabilities,
+        ui: UserInput,
+        size=10,
+):
 
     X_filtered = allsorts_clf.transform(ui.samples)["counts"]
 
@@ -37,17 +42,16 @@ def rebuild_comparisons(allsorts_clf, probabilities, ui, size=10):
     comparisons = probabilities.loc[true_samples]
     cgroup = comparisons.groupby("True")
     new_samples = cgroup.apply(lambda x: x.sample(n=size)
-                                if x.shape[0] > size
-                                else x.sample(n=x.shape[0]))
+                               if x.shape[0] > size
+                               else x.sample(n=x.shape[0])
+                               )
 
     new_index = []
     for sample in new_samples.index:
         new_index.append(sample[1])
 
-    filename = "comparisons.csv"
-    destination = str(root_dir())+"/models/allsorts/" + filename
     cfinal = comparisons[(comparisons.index.isin(new_index))]
-    cfinal.to_csv(destination)
+    cfinal.to_csv(os.path.join(ui.output_dir, "comparisons.csv"))
 
     '''Umap Visualisation'''
 
@@ -74,13 +78,10 @@ def rebuild_comparisons(allsorts_clf, probabilities, ui, size=10):
     l_filename = 'comparison_labels.csv'
     g_filename = 'comparison_genes.csv'
 
-    destination = str(root_dir()) + "/models/allsorts/comparisons/" + u_filename
+    os.makedirs(os.path.join(ui.models_dir, "comparisons"), exist_ok=True)
+    destination = os.path.join(ui.models_dir, "comparisons", u_filename)
     joblib.dump(u, destination)
-    labels.to_csv(str(root_dir()) + "/models/allsorts/comparisons/" + l_filename)
-    pd.Series(X_filtered.columns).to_csv(str(root_dir()) + "/models/allsorts/comparisons/" + g_filename)
-
-
-
-
-
-
+    labels.to_csv(os.path.join(ui.models_dir, "comparisons", l_filename))
+    pd.Series(X_filtered.columns).to_csv(
+        os.path.join(ui.models_dir, "comparisons", g_filename)
+    )

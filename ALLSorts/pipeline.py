@@ -106,7 +106,7 @@ class ALLSorts(Pipeline):
 		Generate waterfall plots data for the results derived from predict_proba and comparisons.
 	plot_waterfall(prediction_order)
 		Generate waterfall plots from data generated in predict_waterfall.
-	predict_plot, X, return_plot=False)
+	predict_plot, X, return_plot=False, comparison_dir=False)
 		Use UMAP to plot samples unto a predefined manifold.
 	clone
 		Create an empty clone of this pipeline
@@ -483,7 +483,7 @@ class ALLSorts(Pipeline):
 
 		return prediction_order
 
-	def predict_plot(self, X, return_plot=False):
+	def predict_plot(self, X, return_plot=False, comparison_dir=False):
 
 		"""
 		Given the raw counts, embed these within a UMAP visualisation consisting of the comparison data.
@@ -497,6 +497,8 @@ class ALLSorts(Pipeline):
 		return_plot : bool
 			Rather than showing the plot through whatever IDE is being used, send it back to the function call.
 			Likely so it can be saved.
+		comparison_dir : str
+			Location of the comparison directory.
 
 		Returns
 		__________
@@ -507,12 +509,16 @@ class ALLSorts(Pipeline):
 		UMAP Plot figure.
 
 		"""
+		# TODO: This is a hack to get the comparison directory. 
+		# This should be the comparision results from retrained models
+		if not comparison_dir:
+			comparison_dir = str(root_dir()) + "/models/allsorts/comparisons"
 
 		plt.figure(figsize=(20, 10))
-		u = joblib.load(str(root_dir()) + "/models/allsorts/comparisons/umap.sav")
-		c_labels = pd.read_csv(str(root_dir()) + "/models/allsorts/comparisons/comparison_labels.csv", index_col=0)
+		u = joblib.load(os.path.join(comparison_dir, "umap.sav"))
+		c_labels = pd.read_csv(os.path.join(comparison_dir, "comparison_labels.csv"), index_col=0)
 		c_labels = c_labels["labels"]
-		c_genes = pd.read_csv(str(root_dir()) + "/models/allsorts/comparisons/comparison_genes.csv", index_col=0)
+		c_genes = pd.read_csv(os.path.join(comparison_dir, "comparison_genes.csv"), index_col=0)
 		c_genes = list(c_genes.iloc[:, 0])
 
 		u_c = u.embedding_
