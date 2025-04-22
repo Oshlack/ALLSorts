@@ -129,7 +129,10 @@ def load_classifier(
     return allsorts_clf
 
 
-def run_comparison_builder(ui, allsorts):
+def run_comparison_builder(
+        ui: UserInput,
+        allsorts: allsorts_object,
+):
 
     """
     Build comparison results to compare to future predictions.
@@ -169,7 +172,10 @@ def _set_njobs(n_jobs, classifier):
     return classifier
 
 
-def run_predictions(ui, allsorts):
+def run_predictions(
+        ui: UserInput,
+        allsorts: allsorts_object,
+):
 
     """
     This is what we are here for. Use ALLSorts to make predictions!
@@ -191,7 +197,9 @@ def run_predictions(ui, allsorts):
     probabilities["Pred"] = list(predictions["Prediction"])
     if not isinstance(ui.labels, bool):
         probabilities["True"] = ui.labels
-
+    if not os.path.exists(ui.destination):
+        print(f"Creating directory {ui.destination}")
+        os.makedirs(ui.destination)
     probabilities.round(3).to_csv(os.path.join(ui.destination, "probabilities.csv"))
     predictions.to_csv(os.path.join(ui.destination, "predictions.csv"))
 
@@ -205,7 +213,7 @@ def run_predictions(ui, allsorts):
             allsorts=allsorts,
             samples=ui.samples,
             destination=ui.destination,
-            models_dir=ui.models_dir,
+            model_dir=ui.model_dir,
             probabilities=probabilities.drop("B-ALL", axis=1),
             plots=["distributions", "waterfalls"],
         )
@@ -214,7 +222,7 @@ def run_predictions(ui, allsorts):
             allsorts=allsorts,
             samples=ui.samples,
             destination=ui.destination,
-            models_dir=ui.models_dir,
+            model_dir=ui.model_dir,
             probabilities=probabilities,
             plots=["distributions", "waterfalls"],
         )
@@ -266,7 +274,7 @@ def get_figures(
         allsorts: allsorts_object,
         samples,
         destination,
-        models_dir,
+        model_dir,
         probabilities,
         comparison_dir=False,
         plots=["distributions", "waterfalls"],
@@ -283,7 +291,7 @@ def get_figures(
         Pandas DataFrame that represents the raw counts of your samples (rows) x genes (columns)).
     destination : str
         Location of where the results should be saved.
-    models_dir : str
+    model_dir : str
         Location of the models directory.
     probabilities : Pandas DataFrame
         The result of running the get_predictions(samples, labels=False, parents=False) function.
@@ -310,7 +318,7 @@ def get_figures(
             if "True" in probabilities.columns:
                 comparisons = False
             else:
-                comparisons = pd.read_csv(os.path.join(models_dir, "comparisons.csv"), index_col=0)
+                comparisons = pd.read_csv(os.path.join(model_dir, "comparisons.csv"), index_col=0)
 
             waterfall_plot = allsorts.predict_waterfall(probabilities, compare=comparisons, return_plot=True)
             waterfall_plot.write_image(os.path.join(destination, "waterfalls.png"), height=900, width=2500, engine="kaleido")
