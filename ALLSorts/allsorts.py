@@ -211,7 +211,8 @@ def run_predictions(
             destination=ui.destination,
             model_dir=ui.model_dir,
             probabilities=probabilities.drop("B-ALL", axis=1),
-            plots=["distributions", "waterfalls"],
+            plots=["distributions"] #, "waterfalls"],
+            # TODO: Add waterfalls back in
         )
     else:
         get_figures(
@@ -220,7 +221,8 @@ def run_predictions(
             destination=ui.destination,
             model_dir=ui.model_dir,
             probabilities=probabilities,
-            plots=["distributions", "waterfalls"],
+            plots=["distributions"], #, "waterfalls"],
+            # TODO: Add waterfalls back in
         )
 
     message("Finished. Thanks for using ALLSorts!")
