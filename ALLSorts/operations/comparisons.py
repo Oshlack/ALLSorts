@@ -51,7 +51,7 @@ def rebuild_comparisons(
         new_index.append(sample[1])
 
     cfinal = comparisons[(comparisons.index.isin(new_index))]
-    cfinal.to_csv(os.path.join(ui.output_dir, "comparisons.csv"))
+    cfinal.to_csv(os.path.join(ui.model_dir, "comparisons.csv"))
 
     '''Umap Visualisation'''
 
