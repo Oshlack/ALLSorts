@@ -234,7 +234,7 @@ def _tune(ui, x_train, y_train, fold="all"):
 								 scoring=scoring).fit(x_train, y_train)
 
 	grid_results = _grid_save(allsorts_grid)
-	grid_results.to_csv(ui.model_dir+"gridsearch/gridsearch_fold"+str(fold)+".csv")
+	grid_results.to_csv(os.path.join(ui.model_dir, "gridsearch", "gridsearch_fold"+str(fold)+".csv"))
 
 	''' Pick the estimator that maximised the score in our gridsearchcv '''
 	allsorts_clf = allsorts_grid.best_estimator_
