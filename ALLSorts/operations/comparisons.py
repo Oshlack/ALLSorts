@@ -78,10 +78,10 @@ def rebuild_comparisons(
     l_filename = 'comparison_labels.csv'
     g_filename = 'comparison_genes.csv'
 
-    os.makedirs(os.path.join(ui.models_dir, "comparisons"), exist_ok=True)
-    destination = os.path.join(ui.models_dir, "comparisons", u_filename)
+    os.makedirs(os.path.join(ui.model_dir, "comparisons"), exist_ok=True)
+    destination = os.path.join(ui.model_dir, "comparisons", u_filename)
     joblib.dump(u, destination)
-    labels.to_csv(os.path.join(ui.models_dir, "comparisons", l_filename))
+    labels.to_csv(os.path.join(ui.model_dir, "comparisons", l_filename))
     pd.Series(X_filtered.columns).to_csv(
-        os.path.join(ui.models_dir, "comparisons", g_filename)
+        os.path.join(ui.model_dir, "comparisons", g_filename)
     )

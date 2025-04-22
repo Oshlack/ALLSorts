@@ -147,7 +147,7 @@ def run_comparison_builder(
     probabilities["Pred"] = list(predictions["Prediction"])
 
     message("Building comparisons...")
-    rebuild_comparisons(allsorts, probabilities, ui)
+    rebuild_comparisons(allsorts_clf, probabilities, ui)
     message("Finished.")
 
 

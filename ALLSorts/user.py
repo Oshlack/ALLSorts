@@ -184,9 +184,9 @@ class UserInput:
             message("Error: if -train is set both -labels/-l, -params/-p, -samples/-s must be also. Exiting.")
             sys.exit()
 
-        if not self.train and not self.destination:
-            message("Error: if -train is not set a destination (-d /path/to/output/) is required. Exiting.")
-            sys.exit()
+        # if not self.train and not self.destination:
+        #     message("Error: if -train is not set a destination (-d /path/to/output/) is required. Exiting.")
+        #     sys.exit()
 
 
     def _load_samples(self):
