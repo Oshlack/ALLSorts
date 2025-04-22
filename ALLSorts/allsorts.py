@@ -75,12 +75,7 @@ def run(ui=False):
 
     elif ui.comparison:
         message("Rebuilding Comparisons", level=1)
-
-        allsorts_clf = load_classifier(ui=ui)
-        allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
-        allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
-
-        run_comparison_builder(ui, allsorts_clf)
+        run_comparison_builder(ui)
 
     else:
         message("Prediction Mode", level=1)
@@ -131,7 +126,6 @@ def load_classifier(
 
 def run_comparison_builder(
         ui: UserInput,
-        allsorts: allsorts_object,
 ):
 
     """
@@ -146,8 +140,10 @@ def run_comparison_builder(
         Carries all information required to execute ALLSorts, see UserInput class for further information.
 
     """
-
-    predictions, probabilities = get_predictions(ui.samples, allsorts, labels=ui.labels, parents=True)
+    allsorts_clf = load_classifier(ui=ui)
+    allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
+    allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
+    predictions, probabilities = get_predictions(ui.samples, allsorts_clf, labels=ui.labels, parents=True)
     probabilities["Pred"] = list(predictions["Prediction"])
 
     message("Building comparisons...")
