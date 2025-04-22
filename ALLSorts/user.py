@@ -52,6 +52,7 @@ class UserInput:
             self.verbose = False if not self.input.verbose else True
             self.force = False if not self.input.force else True
             self.payg = False if not self.input.payg else True
+            self.model_path = False if not self.input.model_path else self.input.model_path
 
             '''Misc'''
             self.test = self.input.test
@@ -167,6 +168,9 @@ class UserInput:
                          required=False,
                          help=("""(bool, default=True) Will include B-ALL flag in results."""))
 
+        cli.add_argument('-model_path',
+                         required=False,
+                         help=("""Path to a pre-trained model."""))
 
         user_input = cli.parse_args()
         return user_input

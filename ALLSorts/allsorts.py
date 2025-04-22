@@ -72,7 +72,7 @@ def run(ui=False):
     elif ui.comparison:
         message("Rebuilding Comparisons", level=1)
 
-        allsorts_clf = load_classifier()
+        allsorts_clf = load_classifier(path=ui.model_path)
         allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
         allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
 
@@ -81,7 +81,7 @@ def run(ui=False):
     else:
         message("Prediction Mode", level=1)
 
-        allsorts_clf = load_classifier()
+        allsorts_clf = load_classifier(path=ui.model_path)
         allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
         allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
 
