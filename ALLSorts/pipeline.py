@@ -378,8 +378,13 @@ class ALLSorts(Pipeline):
 
 		meta_subtypes = ["High Sig", "ETV6-RUNX1 Group", "Ph Group"]
 		waterfalls = prediction_order[~prediction_order["Pred"].isin(meta_subtypes)]
-		no_samples = waterfalls[waterfalls["True"] == "Other"].shape[0]
-		title = "Waterfall Distributions (" + str(no_samples) + " Samples)"
+		# TODO: comment this out because it may contribute to 
+		# new predicted samples without ground truth, 
+		# use the following line for general title.
+		#
+		# no_samples = waterfalls[waterfalls["True"] == "Other"].shape[0]
+		# title = "Waterfall Distributions (" + str(no_samples) + " Samples)"
+		title = "Waterfall Distributions"
 		order = list(waterfalls["Pred"].unique())
 		if "Unclassified" in order:
 			order.remove("Unclassified")
@@ -455,7 +460,6 @@ class ALLSorts(Pipeline):
 			elif probs["Pred"] == "Unclassified":
 				max_prob = probs.drop(["True", "Pred", "Order"]).sort_values(ascending=False).index[0]
 				adj_predicted_proba.loc[sample, "Order"] = max_prob
-		adj_predicted_proba.to_csv("/home/hdang/test2.tsv", sep="\t")
 		return adj_predicted_proba
 
 	def _label_order(self, predicted_proba):
