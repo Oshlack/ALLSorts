@@ -438,9 +438,7 @@ class ALLSorts(Pipeline):
 		return plt
 
 	def _label_adjustment(self, predicted_proba):
-		predicted_proba.to_csv("/home/hdang/test.tsv", sep="\t")
 		adj_predicted_proba = predicted_proba.copy()
-
 		'''Adjust ordering to account for unclassified and multi-class'''
 		adj_predicted_proba["Order"] = adj_predicted_proba["Pred"]
 		for sample, probs in adj_predicted_proba.iterrows():
@@ -449,7 +447,7 @@ class ALLSorts(Pipeline):
 				alpha = ascii_lowercase[:len(calls)]
 				i = 0
 				for call in calls:
-					adj_predicted_proba.loc[sample + "_" + alpha[i]] = adj_predicted_proba.loc[sample].iloc[i]
+					adj_predicted_proba.loc[sample + "_" + alpha[i]] = adj_predicted_proba.loc[sample]
 					adj_predicted_proba.loc[sample+"_"+alpha[i], ["Pred", "Order"]] = call
 					i += 1
 				adj_predicted_proba.drop(sample, inplace=True)
@@ -457,7 +455,7 @@ class ALLSorts(Pipeline):
 			elif probs["Pred"] == "Unclassified":
 				max_prob = probs.drop(["True", "Pred", "Order"]).sort_values(ascending=False).index[0]
 				adj_predicted_proba.loc[sample, "Order"] = max_prob
-
+		adj_predicted_proba.to_csv("/home/hdang/test2.tsv", sep="\t")
 		return adj_predicted_proba
 
 	def _label_order(self, predicted_proba):

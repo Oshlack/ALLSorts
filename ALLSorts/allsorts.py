@@ -213,8 +213,7 @@ def run_predictions(
             destination=ui.destination,
             model_dir=ui.model_dir,
             probabilities=probabilities.drop("B-ALL", axis=1),
-            plots=["distributions"] #, "waterfalls"],
-            # TODO: Add waterfalls back in
+            plots=["distributions", "waterfalls"],
         )
     else:
         get_figures(
@@ -223,8 +222,7 @@ def run_predictions(
             destination=ui.destination,
             model_dir=ui.model_dir,
             probabilities=probabilities,
-            plots=["distributions"], #, "waterfalls"],
-            # TODO: Add waterfalls back in
+            plots=["distributions", "waterfalls"],
         )
 
     message("Finished. Thanks for using ALLSorts!")
@@ -318,7 +316,10 @@ def get_figures(
             if "True" in probabilities.columns:
                 comparisons = False
             else:
-                comparisons = pd.read_csv(os.path.join(model_dir, "comparisons.csv"), index_col=0)
+                try:
+                    comparisons = pd.read_csv(os.path.join(model_dir, "comparisons.csv"), index_col=0)
+                except FileNotFoundError:
+                    raise FileNotFoundError(f"Comparisons file not found in {model_dir}")
 
             waterfall_plot = allsorts.predict_waterfall(probabilities, compare=comparisons, return_plot=True)
             waterfall_plot.write_image(os.path.join(destination, "waterfalls.png"), height=900, width=2500, engine="kaleido")
