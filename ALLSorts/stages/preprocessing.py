@@ -273,7 +273,7 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 			panel_set = set(self.gene_panel)
 			# Find intersection of panel genes and available genes
 			available_panel_genes = list(set(counts.columns) & panel_set)
-			
+
 			if len(available_panel_genes) == 0:
 				message("Error: None of the genes in the panel were found in the data.", level="e")
 				raise ValueError("No panel genes found in data")
@@ -302,7 +302,7 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 		# Update genes based on CPM cutoff
 		elif self.filter_genes:
 			self.filter_cpm(counts, y)
-			
+
 		counts = counts[self.genes]
 
 		if self.norm == "TMM":

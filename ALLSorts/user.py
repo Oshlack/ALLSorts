@@ -69,7 +69,7 @@ class UserInput:
 
     def _is_cli(self):
         return len(sys.argv) > 1
-    
+
     def _get_args(self):
 
         ''' Get arguments and options from CLI '''
