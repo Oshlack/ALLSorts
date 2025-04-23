@@ -36,7 +36,7 @@ class UserInput:
             self.labels = self.input.labels if self.input.labels else False
             
             '''Model Directory''' # This is going to be used in both training and prediction mode
-            self.model_dir = str(root_dir())+"/models/allsorts/" if not self.input.model_dir else self.input.model_dir
+            self.model_dir = False if not self.input.model_dir else self.input.model_dir
 
             '''Prediction Parameters '''
             self.parents = False if not self.input.parents else True
@@ -185,7 +185,7 @@ class UserInput:
             sys.exit()
 
         if self.train and not self.model_dir:
-            message("Error: if -train is set a model_dir (-m /path/to/model/) is required. Exiting.")
+            message("Error: if -train is set a model directory (-model_dir /path/to/model/) is required. Exiting.")
             sys.exit()
         # if not self.train and not self.destination:
         #     message("Error: if -train is not set a destination (-d /path/to/output/) is required. Exiting.")

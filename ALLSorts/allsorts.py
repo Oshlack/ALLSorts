@@ -117,6 +117,8 @@ def load_classifier(
         if not path:
             path = os.path.join(str(root_dir()), "models", "allsorts", "allsorts.pkl.gz")
     else:
+        if not ui.model_dir:
+            ui.model_dir = os.path.join(str(root_dir()), "models", "allsorts")
         path = os.path.join(ui.model_dir, "allsorts.pkl.gz")
     message(f"Loading classifier from {path} ...")
     allsorts_clf = joblib.load(path)
