@@ -75,7 +75,11 @@ def run(ui=False):
 
     elif ui.comparison:
         message("Rebuilding Comparisons", level=1)
-        run_comparison_builder(ui)
+        allsorts_clf = load_classifier()
+        allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
+        allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
+
+        run_comparison_builder(ui, allsorts_clf)
 
     else:
         message("Prediction Mode", level=1)
@@ -89,10 +93,11 @@ def run(ui=False):
 
         run_predictions(ui, allsorts_clf)
 
+
 def load_classifier(
         ui: Optional[UserInput] = None,
-        path=False
-        ) -> allsorts_object:
+        path=False,
+) -> allsorts_object:
 
     """
     Load the ALLSorts classifier from a pickled file.
@@ -128,6 +133,7 @@ def load_classifier(
 
 def run_comparison_builder(
         ui: UserInput,
+        allsorts: allsorts_object,
 ):
 
     """
@@ -142,14 +148,13 @@ def run_comparison_builder(
         Carries all information required to execute ALLSorts, see UserInput class for further information.
 
     """
-    allsorts_clf = load_classifier(ui=ui)
-    allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
-    allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
-    predictions, probabilities = get_predictions(ui.samples, allsorts_clf, labels=ui.labels, parents=True)
+    predictions, probabilities = get_predictions(
+        ui.samples, allsorts=allsorts, labels=ui.labels, parents=True
+    )
     probabilities["Pred"] = list(predictions["Prediction"])
 
     message("Building comparisons...")
-    rebuild_comparisons(allsorts_clf, probabilities, ui)
+    rebuild_comparisons(allsorts, probabilities, ui)
     message("Finished.")
 
 
