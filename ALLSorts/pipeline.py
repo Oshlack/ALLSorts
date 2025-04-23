@@ -11,11 +11,13 @@
 ''' --------------------------------------------------------------------------------------------------------------------
 Imports
 ---------------------------------------------------------------------------------------------------------------------'''
+import os
 
 ''' Internal '''
 from ALLSorts.common import _flat_hierarchy, message, root_dir
 
 ''' External '''
+import matplotlib.pyplot as plt
 from sklearn.pipeline import Pipeline
 from sklearn.base import clone
 import joblib
@@ -527,7 +529,8 @@ class ALLSorts(Pipeline):
 		u_t = u.transform(X_t)
 
 		plt.scatter(u_t[:, 0], u_t[:, 1], c="#000000", alpha=0.4)
-		plt.scatter(u_c[:, 0], u_c[:, 1], c=[c_subtypes[r] for r in c_labels], alpha=0.4, marker="x")
+		# TODO: This is a hack to get the label by choosing the first predicted label, should be updated
+		plt.scatter(u_c[:, 0], u_c[:, 1], c=[c_subtypes[r.split(",")[0]] for r in c_labels], alpha=0.4, marker="x")
 
 		transformed_positions = pd.DataFrame(u_c)
 		transformed_positions["label"] = list(c_labels)

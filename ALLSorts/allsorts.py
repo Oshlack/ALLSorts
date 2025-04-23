@@ -92,7 +92,7 @@ def run(ui=False):
 def load_classifier(
         ui: Optional[UserInput] = None,
         path=False
-        ):
+        ) -> allsorts_object:
 
     """
     Load the ALLSorts classifier from a pickled file.
@@ -118,7 +118,7 @@ def load_classifier(
             path = os.path.join(str(root_dir()), "models", "allsorts", "allsorts.pkl.gz")
     else:
         path = os.path.join(ui.model_dir, "allsorts.pkl.gz")
-    message(f"Loading classifier from {path}...")
+    message(f"Loading classifier from {path} ...")
     allsorts_clf = joblib.load(path)
 
     return allsorts_clf
