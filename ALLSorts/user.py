@@ -260,4 +260,3 @@ class UserInput:
 
     def _get_hierarchy(self, paths):
         return get_hierarchy(paths)
-

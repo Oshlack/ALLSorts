@@ -107,17 +107,17 @@ def train(
         search_path = os.path.join(model_dir, "gridsearch")
         create_dir([model_dir, search_path])
 
-        ''' CV results storage '''
-        thresholds_cv = {}
-        results_cv = {"accuracy": [], "precision": [], "recall": [], "f1": []}
+    ''' CV results storage '''
+    thresholds_cv = {}
+    results_cv = {"accuracy": [], "precision": [], "recall": [], "f1": []}
 
-        '''Prepare for CV'''
-        subtypes = list(labels.unique())
-        global fold_predictions, grid_total
-        fold_predictions = pd.DataFrame(columns=["cv", "grid", "hierarchy", "standardisation", "chrom_feature",
-                                                "fusion_feature", "iamp21_feature", "centroid"] +
-                                                subtypes + ["acc", "f1"])
-        grid_total = gcv
+    '''Prepare for CV'''
+    subtypes = list(labels.unique())
+    global fold_predictions, grid_total
+    fold_predictions = pd.DataFrame(columns=["cv", "grid", "hierarchy", "standardisation", "chrom_feature",
+                                            "fusion_feature", "iamp21_feature", "centroid"] +
+                                            subtypes + ["acc", "f1"])
+    grid_total = gcv
 
     '''CV Loop'''
     for fold in range(1, cv + 1):
