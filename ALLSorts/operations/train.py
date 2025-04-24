@@ -13,8 +13,7 @@ Imports
 import os
 from typing import Optional
 '''  Internal '''
-from ALLSorts.common import message, create_dir, _flat_hierarchy
-from ALLSorts.user import UserInput
+from ALLSorts.common import message, create_dir, get_hierarchy, root_dir
 # ALLSorts pipeline and stages
 from ALLSorts.pipeline import ALLSorts
 from ALLSorts.stages.preprocessing import Preprocessing
@@ -87,6 +86,10 @@ def train(
         Number of grid search cross-validation folds, by default 5
     """
 
+    '''  hierarchy check '''
+    if not hierarchy:
+        hierarchy = get_hierarchy([str(root_dir())+"/models/hierarchies/phenocopy.txt",
+								   str(root_dir())+"/models/hierarchies/flat.txt"])
     training_params = {
 		"model_dir": model_dir,
         "save_model": save_model,

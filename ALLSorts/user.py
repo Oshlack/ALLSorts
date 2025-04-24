@@ -14,12 +14,11 @@ Imports
 import os
 
 ''' Internal '''
-from ALLSorts.common import message, root_dir
+from ALLSorts.common import message, root_dir, get_hierarchy
 
 ''' External '''
 import sys, argparse
 import pandas as pd
-import ast
 from typing import List, Optional
 
 ''' --------------------------------------------------------------------------------------------------------------------
@@ -260,10 +259,5 @@ class UserInput:
             self.labels.name = "labels"
 
     def _get_hierarchy(self, paths):
+        return get_hierarchy(paths)
 
-        hierarchies = []
-        for hierarchy in paths:
-            supplied = open(hierarchy).read()
-            hierarchies.append(ast.literal_eval(supplied))
-
-        return hierarchies
