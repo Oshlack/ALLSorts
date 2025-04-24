@@ -24,11 +24,12 @@ Imports
 
 ''' External '''
 import os
+import sys
 import time
 import joblib
 import pandas as pd
 import plotly
-from typing import Optional
+from typing import Optional, Union
 
 '''  Internal '''
 from ALLSorts.common import message, root_dir
@@ -66,16 +67,31 @@ def run(ui=False):
     if not ui:
         ui = UserInput()
         message(allsorts_asci)
-
+    model_path = os.path.join(ui.model_dir, "allsorts.pkl.gz")
     if ui.train:
         message("Training Mode", level=1)
         train_time = time.time()
-        train(ui=ui)
+        trained_allsorts = train(
+            samples=ui.samples,
+            labels=ui.labels,
+            cv=ui.cv,
+            gcv=ui.gcv,
+            hierarchy=ui.hierarchy,
+            gene_panel=ui.gene_panel,
+            model_dir=ui.model_dir,
+            save_model=True,
+            save_counts=False,
+            save_grid_results=True,
+            payg=ui.payg,
+            baseline=ui.baseline,
+            n_jobs=ui.n_jobs,
+            verbose=ui.verbose,
+        )
         message("Total Train time " + str(round(time.time() - train_time, 2)))  # Seconds
 
     elif ui.comparison:
         message("Rebuilding Comparisons", level=1)
-        allsorts_clf = load_classifier()
+        allsorts_clf = load_classifier(path=model_path)
         allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
         allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
 
@@ -84,19 +100,30 @@ def run(ui=False):
     else:
         message("Prediction Mode", level=1)
 
-        allsorts_clf = load_classifier(ui=ui)
+        allsorts_clf = load_classifier(path=model_path)
         allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
         allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
 
         message("Using thresholds:", level=2)
         message(allsorts_clf.steps[-1][-1].thresholds)
 
-        run_predictions(ui, allsorts_clf)
+        # Run predictions and ignore return value in CLI mode
+        # When used as a package, this function returns a dictionary of results
+        results = run_predictions(
+            allsorts=allsorts_clf,
+            samples=ui.samples,
+            labels=ui.labels,
+            parents=ui.parents,
+            save_results=True,
+            save_counts=ui.counts,
+            save_figures=True,
+            destination=ui.destination,
+            model_dir=ui.model_dir,
+        )
 
 
 def load_classifier(
-        ui: Optional[UserInput] = None,
-        path=False,
+        path: str = os.path.join(str(root_dir()), "models", "allsorts", "allsorts.pkl.gz"),
 ) -> allsorts_object:
 
     """
@@ -106,9 +133,6 @@ def load_classifier(
 
     Parameters
     __________
-    ui : UserInput
-        UserInput object, carries all information required to execute ALLSorts, 
-        see UserInput class for further information.
     path : str
         Path to a pickle object that holds the ALLSorts model.
         Default: "/models/allsorts/allsorts.pkl.gz"
@@ -118,13 +142,6 @@ def load_classifier(
     allsorts_clf : ALLSorts object
         ALLSorts object, unpacked, ready to go.
     """
-    if not ui:
-        if not path:
-            path = os.path.join(str(root_dir()), "models", "allsorts", "allsorts.pkl.gz")
-    else:
-        if not ui.model_dir:
-            ui.model_dir = os.path.join(str(root_dir()), "models", "allsorts")
-        path = os.path.join(ui.model_dir, "allsorts.pkl.gz")
     message(f"Loading classifier from {path} ...")
     allsorts_clf = joblib.load(path)
 
@@ -176,8 +193,16 @@ def _set_njobs(n_jobs, classifier):
 
 
 def run_predictions(
-        ui: UserInput,
         allsorts: allsorts_object,
+        samples: pd.DataFrame,
+        labels: Union[pd.Series, bool],
+        parents: bool,
+        *,
+        save_results: bool = False,
+        save_counts: bool = False,
+        save_figures: bool = False,
+        destination: Optional[str] = None,
+        model_dir: Optional[str] = None,
 ):
 
     """
@@ -187,50 +212,76 @@ def run_predictions(
 
     Parameters
     __________
-    ui : User Input Class
-        Carries all information required to execute ALLSorts, see UserInput class for further information.
+    allsorts : ALLSorts object
+        The ALLSorts object to use for predictions.
+    samples : pd.DataFrame
+        The samples to make predictions on.
+    labels : pd.Series
+        The labels to use for predictions.
+    parents : bool
+        Whether to include parents in the predictions.
+    save_results : bool
+        Whether to save the predictions and probabilities.
+    save_counts : bool
+        Whether to save the normalised counts.
+    save_figures : bool
+        Whether to save the figures.
+    destination : str
+        The destination to save the results to.
+    model_dir : str
+        The model directory.
 
     Output
     __________
-    Probabilities.csv, Predictions.csv, Distributions.png, Waterfalls.png at the ui.destination path.
+    Returns a dictionary with the predictions and probabilities.
 
+    If save_results is True:
+    Probabilities.csv, Predictions.csv, Distributions.png, Waterfalls.png at the ui.destination path.
+    If save_counts is True:
+        Processed_counts.csv at the ui.destination path.
+    If save_figures is True:
+        Distributions.png, Waterfalls.png at the ui.destination path.
     """
 
-    predictions, probabilities = get_predictions(ui.samples, allsorts, parents=ui.parents)
+    predictions, probabilities = get_predictions(samples, allsorts, parents=parents)
     probabilities["Pred"] = list(predictions["Prediction"])
-    if not isinstance(ui.labels, bool):
-        probabilities["True"] = ui.labels
-    if not os.path.exists(ui.destination):
-        print(f"Creating directory {ui.destination}")
-        os.makedirs(ui.destination)
-    probabilities.round(3).to_csv(os.path.join(ui.destination, "probabilities.csv"))
-    predictions.to_csv(os.path.join(ui.destination, "predictions.csv"))
+    if not isinstance(labels, bool):
+        probabilities["True"] = labels
 
-    if ui.counts:
+    if save_results:
+        if not os.path.exists(destination):
+            print(f"Creating directory {destination}")
+            os.makedirs(destination)
+        probabilities.round(3).to_csv(os.path.join(destination, "probabilities.csv"))
+        predictions.to_csv(os.path.join(destination, "predictions.csv"))
+
+    if save_counts:
         message("Saving normalised counts.")
-        processed_counts = allsorts.transform(ui.samples)
-        processed_counts["counts"].to_csv(os.path.join(ui.destination, "processed_counts.csv"))
+        processed_counts = allsorts.transform(samples)
+        processed_counts["counts"].to_csv(os.path.join(destination, "processed_counts.csv"))
 
-    if "B-ALL" in probabilities.columns:
-        get_figures(
-            allsorts=allsorts,
-            samples=ui.samples,
-            destination=ui.destination,
-            model_dir=ui.model_dir,
-            probabilities=probabilities.drop("B-ALL", axis=1),
-            plots=["distributions", "waterfalls"],
-        )
-    else:
-        get_figures(
-            allsorts=allsorts,
-            samples=ui.samples,
-            destination=ui.destination,
-            model_dir=ui.model_dir,
-            probabilities=probabilities,
-            plots=["distributions", "waterfalls"],
-        )
+    if save_figures:
+        if "B-ALL" in probabilities.columns:
+            get_figures(
+                allsorts=allsorts,
+                samples=samples,
+                destination=destination,
+                model_dir=model_dir,
+                probabilities=probabilities.drop("B-ALL", axis=1),
+                plots=["distributions", "waterfalls"],
+            )
+        else:
+            get_figures(
+                allsorts=allsorts,
+                samples=samples,
+                destination=destination,
+                model_dir=model_dir,
+                probabilities=probabilities,
+                plots=["distributions", "waterfalls"],
+            )
 
     message("Finished. Thanks for using ALLSorts!")
+    return {"predictions": predictions, "probabilities": probabilities}
 
 
 def get_predictions(samples, allsorts, labels=False, parents=False):
