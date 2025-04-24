@@ -11,7 +11,7 @@ Imports
 ---------------------------------------------------------------------------------------------------------------------'''
 
 import os
-from typing import Optional
+from typing import Optional, List
 '''  Internal '''
 from ALLSorts.common import message, create_dir, get_hierarchy, root_dir
 # ALLSorts pipeline and stages
@@ -58,7 +58,7 @@ def train(
     cv: int = 5,
     gcv: int = 5,
 	hierarchy: str = None,
-	gene_panel: str = None,
+	gene_panel: Optional[List[str]] = None,
 	*,
     model_dir: Optional[str] = None,
 	save_model: bool = False,
@@ -206,7 +206,7 @@ def _tune(
     gcv: int,
     cv: int,
     input_hierarchy,
-	gene_panel: str = None,
+	gene_panel: Optional[List[str]] = None,
     fold: str = "all",
     *,
     baseline: bool = False,
