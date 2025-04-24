@@ -242,7 +242,7 @@ class UserInput:
             message("Error: if -train is set both -labels/-l, -params/-p, -samples/-s must be also. Exiting.")
             sys.exit()
 
-        if self.train and not self.model_dir:
+        if self.train and not self.input.model_dir:
             message("Error: if -train is set a model directory (-model_dir /path/to/model/) is required. Exiting.")
             sys.exit()
         # if not self.train and not self.destination:

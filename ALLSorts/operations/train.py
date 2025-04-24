@@ -61,10 +61,10 @@ def train(
 	hierarchy: str = None,
 	gene_panel: str = None,
 	*,
-    model_dir: str,
-	save_model: bool = True,
+    model_dir: Optional[str] = None,
+	save_model: bool = False,
     save_counts: bool = False,
-	save_grid_results: bool = True,
+	save_grid_results: bool = False,
 	payg: bool = False,
 	baseline: bool = False,
 	n_jobs: int = 1,
@@ -99,22 +99,22 @@ def train(
     }
 
     message("Cross Validation (this will take awhile):", level=2)
+    if save_grid_results:
+        ''' Create results path '''
+        search_path = os.path.join(model_dir, "gridsearch")
+        create_dir([model_dir, search_path])
 
-    ''' Create results path '''
-    search_path = os.path.join(model_dir, "gridsearch")
-    create_dir([model_dir, search_path])
+        ''' CV results storage '''
+        thresholds_cv = {}
+        results_cv = {"accuracy": [], "precision": [], "recall": [], "f1": []}
 
-    ''' CV results storage '''
-    thresholds_cv = {}
-    results_cv = {"accuracy": [], "precision": [], "recall": [], "f1": []}
-
-    '''Prepare for CV'''
-    subtypes = list(labels.unique())
-    global fold_predictions, grid_total
-    fold_predictions = pd.DataFrame(columns=["cv", "grid", "hierarchy", "standardisation", "chrom_feature",
-											 "fusion_feature", "iamp21_feature", "centroid"] +
-											 subtypes + ["acc", "f1"])
-    grid_total = gcv
+        '''Prepare for CV'''
+        subtypes = list(labels.unique())
+        global fold_predictions, grid_total
+        fold_predictions = pd.DataFrame(columns=["cv", "grid", "hierarchy", "standardisation", "chrom_feature",
+                                                "fusion_feature", "iamp21_feature", "centroid"] +
+                                                subtypes + ["acc", "f1"])
+        grid_total = gcv
 
     '''CV Loop'''
     for fold in range(1, cv + 1):
@@ -172,7 +172,7 @@ def train(
         input_hierarchy=hierarchy,
         **training_params,
     )
-    if payg:
+    if payg and save_grid_results:
         fold_predictions.to_csv("fold_predictons.csv")
 
     ''' Average thresholds '''
