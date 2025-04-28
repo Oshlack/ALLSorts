@@ -324,27 +324,15 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 		''' Filter genes '''
 
 		# Find which genes from self.genes are actually in the counts matrix
-		available_genes = [g for g in self.genes if g in counts.columns]
-		missing_data_genes = set(counts.columns.tolist()).difference(set(available_genes))
+		missing_data_genes = set(counts.columns.tolist()).difference(set(self.genes))
 		if len(missing_data_genes) > 0:
 			message(f"Warning: {len(missing_data_genes)} genes from input data not used: " +
 					f"{', '.join(list(missing_data_genes)[:5])}{'...' if len(missing_data_genes) > 5 else ''}",
 					level="w")
-		missing_genes = set(self.genes) - set(available_genes)
 
-		if len(missing_genes) > 0:
-			message(f"Warning: {len(missing_genes)} genes from gene panel not found in data: " +
-					f"{', '.join(list(missing_genes)[:5])}{'...' if len(missing_genes) > 5 else ''}",
-					level="w")
+		counts = counts.reindex(self.genes, axis=1, fill_value=0)
 
-		if len(available_genes) == 0:
-			message("Error: None of the filter genes were found in the data", level="e")
-			raise ValueError("No filter genes found in data")
-
-		# Only subset to genes that exist in the data
-		counts = counts[available_genes]
-
-		message(f"Filtered counts matrix to {len(available_genes)} genes")
+		message(f"Filtered counts matrix to {len(self.genes)} genes")
 
 		''' Normalise with TMM '''
 		if self.norm == "TMM":
