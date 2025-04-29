@@ -330,7 +330,7 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 					f"{', '.join(list(missing_data_genes)[:5])}{'...' if len(missing_data_genes) > 5 else ''}",
 					level="w")
 
-		counts = counts.reindex(self.genes, axis=1, fill_value=0)
+		counts = counts.reindex(self.genes, axis=1)
 
 		message(f"Filtered counts matrix to {len(self.genes)} genes")
 
