@@ -2,6 +2,17 @@
 
 ALLSorts is a B-Cell Acute Lymphoblastic Leukemia (B-ALL) subtype classifier, taking gene expression counts and making predictions across 18 subtypes and 5 meta-subtypes!
 
+ALLSorts is now published in Blood Advances: https://doi.org/10.1182/bloodadvances.2021005894
+
+To cite ALLSorts v0.2.0: 
+
+```
+Breon Schmidt, Lauren M. Brown, Georgina L. Ryland, Andrew Lonsdale, Hansen J. Kosasih, 
+Louise E. Ludlow, Ian J. Majewski, Piers Blombery, Paul G. Ekert, Nadia M. Davidson, 
+Alicia Oshlack; ALLSorts: an RNA-Seq subtype classifier for B-cell acute 
+lymphoblastic leukemia. Blood Adv 2022; 6 (14): 4093–4097. doi: https://doi.org/10.1182/bloodadvances.2021005894
+```
+
 Interested? Great! Please refer to the <a href="https://github.com/Oshlack/ALLSorts/wiki" target="_blank">wiki</a> for further information & documentation.
 
 If you have any problems, let us know via <a href="https://github.com/Oshlack/ALLSorts/issues">issues</a> and we will get back to you promptly.
