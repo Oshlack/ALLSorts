@@ -21,17 +21,21 @@
 Imports
 ---------------------------------------------------------------------------------------------------------------------"""
 
+
 ''' External '''
+import os
 import time
 import joblib
 import pandas as pd
 import plotly
+from typing import Optional
 
 '''  Internal '''
 from ALLSorts.common import message, root_dir
 from ALLSorts.operations.comparisons import rebuild_comparisons
 from ALLSorts.user import UserInput
 from ALLSorts.operations.train import train
+from ALLSorts.pipeline import ALLSorts as allsorts_object
 
 ''' --------------------------------------------------------------------------------------------------------------------
 Functions
@@ -71,7 +75,6 @@ def run(ui=False):
 
     elif ui.comparison:
         message("Rebuilding Comparisons", level=1)
-
         allsorts_clf = load_classifier()
         allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
         allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
@@ -81,7 +84,7 @@ def run(ui=False):
     else:
         message("Prediction Mode", level=1)
 
-        allsorts_clf = load_classifier()
+        allsorts_clf = load_classifier(ui=ui)
         allsorts_clf = _set_njobs(ui.n_jobs, allsorts_clf)
         allsorts_clf.steps[-1][-1].filter_healthy = True if ui.ball == "True" else False
 
@@ -90,7 +93,11 @@ def run(ui=False):
 
         run_predictions(ui, allsorts_clf)
 
-def load_classifier(path=False):
+
+def load_classifier(
+        ui: Optional[UserInput] = None,
+        path=False,
+) -> allsorts_object:
 
     """
     Load the ALLSorts classifier from a pickled file.
@@ -99,6 +106,9 @@ def load_classifier(path=False):
 
     Parameters
     __________
+    ui : UserInput
+        UserInput object, carries all information required to execute ALLSorts, 
+        see UserInput class for further information.
     path : str
         Path to a pickle object that holds the ALLSorts model.
         Default: "/models/allsorts/allsorts.pkl.gz"
@@ -108,17 +118,23 @@ def load_classifier(path=False):
     allsorts_clf : ALLSorts object
         ALLSorts object, unpacked, ready to go.
     """
-
-    if not path:
-        path = str(root_dir()) + "/models/allsorts/allsorts.pkl.gz"
-
-    message("Loading classifier...")
+    if not ui:
+        if not path:
+            path = os.path.join(str(root_dir()), "models", "allsorts", "allsorts.pkl.gz")
+    else:
+        if not ui.model_dir:
+            ui.model_dir = os.path.join(str(root_dir()), "models", "allsorts")
+        path = os.path.join(ui.model_dir, "allsorts.pkl.gz")
+    message(f"Loading classifier from {path} ...")
     allsorts_clf = joblib.load(path)
 
     return allsorts_clf
 
 
-def run_comparison_builder(ui, allsorts):
+def run_comparison_builder(
+        ui: UserInput,
+        allsorts: allsorts_object,
+):
 
     """
     Build comparison results to compare to future predictions.
@@ -132,8 +148,9 @@ def run_comparison_builder(ui, allsorts):
         Carries all information required to execute ALLSorts, see UserInput class for further information.
 
     """
-
-    predictions, probabilities = get_predictions(ui.samples, allsorts, labels=ui.labels, parents=True)
+    predictions, probabilities = get_predictions(
+        ui.samples, allsorts=allsorts, labels=ui.labels, parents=True
+    )
     probabilities["Pred"] = list(predictions["Prediction"])
 
     message("Building comparisons...")
@@ -158,7 +175,10 @@ def _set_njobs(n_jobs, classifier):
     return classifier
 
 
-def run_predictions(ui, allsorts):
+def run_predictions(
+        ui: UserInput,
+        allsorts: allsorts_object,
+):
 
     """
     This is what we are here for. Use ALLSorts to make predictions!
@@ -180,19 +200,35 @@ def run_predictions(ui, allsorts):
     probabilities["Pred"] = list(predictions["Prediction"])
     if not isinstance(ui.labels, bool):
         probabilities["True"] = ui.labels
-
-    probabilities.round(3).to_csv(ui.destination + "/probabilities.csv")
-    predictions.to_csv(ui.destination + "/predictions.csv")
+    if not os.path.exists(ui.destination):
+        print(f"Creating directory {ui.destination}")
+        os.makedirs(ui.destination)
+    probabilities.round(3).to_csv(os.path.join(ui.destination, "probabilities.csv"))
+    predictions.to_csv(os.path.join(ui.destination, "predictions.csv"))
 
     if ui.counts:
         message("Saving normalised counts.")
         processed_counts = allsorts.transform(ui.samples)
-        processed_counts["counts"].to_csv(ui.destination + "/processed_counts.csv")
+        processed_counts["counts"].to_csv(os.path.join(ui.destination, "processed_counts.csv"))
 
     if "B-ALL" in probabilities.columns:
-        get_figures(ui.samples, allsorts, ui.destination, probabilities.drop("B-ALL", axis=1))
+        get_figures(
+            allsorts=allsorts,
+            samples=ui.samples,
+            destination=ui.destination,
+            model_dir=ui.model_dir,
+            probabilities=probabilities.drop("B-ALL", axis=1),
+            plots=["distributions", "waterfalls"],
+        )
     else:
-        get_figures(ui.samples, allsorts, ui.destination, probabilities)
+        get_figures(
+            allsorts=allsorts,
+            samples=ui.samples,
+            destination=ui.destination,
+            model_dir=ui.model_dir,
+            probabilities=probabilities,
+            plots=["distributions", "waterfalls"],
+        )
 
     message("Finished. Thanks for using ALLSorts!")
 
@@ -237,7 +273,15 @@ def get_predictions(samples, allsorts, labels=False, parents=False):
     return predictions, probabilities
 
 
-def get_figures(samples, allsorts, destination, probabilities, plots=["distributions", "waterfalls"]):
+def get_figures(
+        allsorts: allsorts_object,
+        samples,
+        destination,
+        model_dir,
+        probabilities,
+        comparison_dir=False,
+        plots=["distributions", "waterfalls"],
+):
 
     """
     Make figures of the results.
@@ -250,6 +294,8 @@ def get_figures(samples, allsorts, destination, probabilities, plots=["distribut
         Pandas DataFrame that represents the raw counts of your samples (rows) x genes (columns)).
     destination : str
         Location of where the results should be saved.
+    model_dir : str
+        Location of the models directory.
     probabilities : Pandas DataFrame
         The result of running the get_predictions(samples, labels=False, parents=False) function.
         See function for further usage.
@@ -264,27 +310,29 @@ def get_figures(samples, allsorts, destination, probabilities, plots=["distribut
     """
 
     message("Saving figures...")
-
     for plot in plots:
 
         if plot == "distributions":
             dist_plot = allsorts.predict_dist(probabilities, return_plot=True)
-            dist_plot.write_image(destination + "/distributions.png", width=4000, height=1500, engine="kaleido")
-            dist_plot.write_html(destination + "/distributions.html")
+            dist_plot.write_image(os.path.join(destination, "distributions.png"), width=4000, height=1500, engine="kaleido")
+            dist_plot.write_html(os.path.join(destination, "distributions.html"))
 
         if plot == "waterfalls":
             if "True" in probabilities.columns:
                 comparisons = False
             else:
-                comparisons = pd.read_csv(str(root_dir()) + "/models/allsorts/comparisons.csv", index_col=0)
+                try:
+                    comparisons = pd.read_csv(os.path.join(model_dir, "comparisons.csv"), index_col=0)
+                except FileNotFoundError:
+                    raise FileNotFoundError(f"Comparisons file not found in {model_dir}")
 
             waterfall_plot = allsorts.predict_waterfall(probabilities, compare=comparisons, return_plot=True)
-            waterfall_plot.write_image(destination + "/waterfalls.png", height=900, width=2500, engine="kaleido")
-            waterfall_plot.write_html(destination + "/waterfalls.html")
+            waterfall_plot.write_image(os.path.join(destination, "waterfalls.png"), height=900, width=2500, engine="kaleido")
+            waterfall_plot.write_html(os.path.join(destination, "waterfalls.html"))
 
         if plot == "manifold":
-            umap_plot = allsorts.predict_plot(samples, return_plot=True)
-            umap_plot.savefig(destination + "/manifold.png")
+            umap_plot = allsorts.predict_plot(samples, return_plot=True, comparison_dir=comparison_dir)
+            umap_plot.savefig(os.path.join(destination, "manifold.png"))
 
 
 ''' --------------------------------------------------------------------------------------------------------------------

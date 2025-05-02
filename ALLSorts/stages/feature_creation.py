@@ -233,7 +233,8 @@ class FeatureCreation(BaseEstimator, TransformerMixin):
 	def _immunoFeature(self, counts):
 
 		all_genes = ["CD19", "CD34", "CD22", "DNTT", "CD79A"]
-		all_immuno = pd.DataFrame(counts[all_genes].sum(axis=1), columns=["B-ALL"], index=counts.index)
+		available_genes = list(set(all_genes).intersection(counts.columns))
+		all_immuno = pd.DataFrame(counts[available_genes].sum(axis=1), columns=["B-ALL"], index=counts.index)
 
 		return all_immuno
 

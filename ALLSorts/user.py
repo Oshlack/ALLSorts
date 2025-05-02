@@ -34,11 +34,13 @@ class UserInput:
             ''' Data '''
             self.samples = self.input.samples
             self.labels = self.input.labels if self.input.labels else False
+            
+            '''Model Directory''' # This is going to be used in both training and prediction mode
+            self.model_dir = False if not self.input.model_dir else self.input.model_dir
 
             '''Prediction Parameters '''
             self.parents = False if not self.input.parents else True
             self.ball = self.input.ball
-            self.model_dir = str(root_dir())+"/models/allsorts/" if not self.input.model_dir else self.input.model_dir
             self.destination = False if not self.input.destination else self.input.destination
 
             '''Training Parameters'''
@@ -118,7 +120,8 @@ class UserInput:
 
         cli.add_argument('-model_dir',
                          required=False,
-                         help=("""Directory for a new model. -train -t flag must be set."""))
+                         help=("""Directory for a new model in training mode, 
+                               or directory for a pre-trained model in prediction mode."""))
 
         cli.add_argument('-njobs', '-j',
                          required=False,
@@ -167,7 +170,6 @@ class UserInput:
                          required=False,
                          help=("""(bool, default=True) Will include B-ALL flag in results."""))
 
-
         user_input = cli.parse_args()
         return user_input
 
@@ -182,9 +184,12 @@ class UserInput:
             message("Error: if -train is set both -labels/-l, -params/-p, -samples/-s must be also. Exiting.")
             sys.exit()
 
-        if not self.train and not self.destination:
-            message("Error: if -train is not set a destination (-d /path/to/output/) is required. Exiting.")
+        if self.train and not self.model_dir:
+            message("Error: if -train is set a model directory (-model_dir /path/to/model/) is required. Exiting.")
             sys.exit()
+        # if not self.train and not self.destination:
+        #     message("Error: if -train is not set a destination (-d /path/to/output/) is required. Exiting.")
+        #     sys.exit()
 
 
     def _load_samples(self):

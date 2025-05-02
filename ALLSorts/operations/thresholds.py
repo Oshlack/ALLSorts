@@ -11,7 +11,6 @@ Imports
 ---------------------------------------------------------------------------------------------------------------------'''
 
 ''' Internal '''
-from ALLSorts.common import message, root_dir
 
 ''' External '''
 from sklearn.model_selection import train_test_split

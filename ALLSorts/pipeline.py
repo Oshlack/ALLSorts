@@ -11,11 +11,13 @@
 ''' --------------------------------------------------------------------------------------------------------------------
 Imports
 ---------------------------------------------------------------------------------------------------------------------'''
+import os
 
 ''' Internal '''
 from ALLSorts.common import _flat_hierarchy, message, root_dir
 
 ''' External '''
+import matplotlib.pyplot as plt
 from sklearn.pipeline import Pipeline
 from sklearn.base import clone
 import joblib
@@ -106,7 +108,7 @@ class ALLSorts(Pipeline):
 		Generate waterfall plots data for the results derived from predict_proba and comparisons.
 	plot_waterfall(prediction_order)
 		Generate waterfall plots from data generated in predict_waterfall.
-	predict_plot, X, return_plot=False)
+	predict_plot, X, return_plot=False, comparison_dir=False)
 		Use UMAP to plot samples unto a predefined manifold.
 	clone
 		Create an empty clone of this pipeline
@@ -376,8 +378,13 @@ class ALLSorts(Pipeline):
 
 		meta_subtypes = ["High Sig", "ETV6-RUNX1 Group", "Ph Group"]
 		waterfalls = prediction_order[~prediction_order["Pred"].isin(meta_subtypes)]
-		no_samples = waterfalls[waterfalls["True"] == "Other"].shape[0]
-		title = "Waterfall Distributions (" + str(no_samples) + " Samples)"
+		# TODO: comment this out because it may contribute to 
+		# new predicted samples without ground truth, 
+		# use the following line for general title.
+		#
+		# no_samples = waterfalls[waterfalls["True"] == "Other"].shape[0]
+		# title = "Waterfall Distributions (" + str(no_samples) + " Samples)"
+		title = "Waterfall Distributions"
 		order = list(waterfalls["Pred"].unique())
 		if "Unclassified" in order:
 			order.remove("Unclassified")
@@ -436,9 +443,7 @@ class ALLSorts(Pipeline):
 		return plt
 
 	def _label_adjustment(self, predicted_proba):
-
 		adj_predicted_proba = predicted_proba.copy()
-
 		'''Adjust ordering to account for unclassified and multi-class'''
 		adj_predicted_proba["Order"] = adj_predicted_proba["Pred"]
 		for sample, probs in adj_predicted_proba.iterrows():
@@ -455,7 +460,6 @@ class ALLSorts(Pipeline):
 			elif probs["Pred"] == "Unclassified":
 				max_prob = probs.drop(["True", "Pred", "Order"]).sort_values(ascending=False).index[0]
 				adj_predicted_proba.loc[sample, "Order"] = max_prob
-
 		return adj_predicted_proba
 
 	def _label_order(self, predicted_proba):
@@ -483,7 +487,7 @@ class ALLSorts(Pipeline):
 
 		return prediction_order
 
-	def predict_plot(self, X, return_plot=False):
+	def predict_plot(self, X, return_plot=False, comparison_dir=False):
 
 		"""
 		Given the raw counts, embed these within a UMAP visualisation consisting of the comparison data.
@@ -497,6 +501,8 @@ class ALLSorts(Pipeline):
 		return_plot : bool
 			Rather than showing the plot through whatever IDE is being used, send it back to the function call.
 			Likely so it can be saved.
+		comparison_dir : str
+			Location of the comparison directory.
 
 		Returns
 		__________
@@ -507,12 +513,16 @@ class ALLSorts(Pipeline):
 		UMAP Plot figure.
 
 		"""
+		# TODO: This is a hack to get the comparison directory. 
+		# This should be the comparision results from retrained models
+		if not comparison_dir:
+			comparison_dir = os.path.join(str(root_dir()), "models", "allsorts", "comparisons")
 
 		plt.figure(figsize=(20, 10))
-		u = joblib.load(str(root_dir()) + "/models/allsorts/comparisons/umap.sav")
-		c_labels = pd.read_csv(str(root_dir()) + "/models/allsorts/comparisons/comparison_labels.csv", index_col=0)
+		u = joblib.load(os.path.join(comparison_dir, "umap.sav"))
+		c_labels = pd.read_csv(os.path.join(comparison_dir, "comparison_labels.csv"), index_col=0)
 		c_labels = c_labels["labels"]
-		c_genes = pd.read_csv(str(root_dir()) + "/models/allsorts/comparisons/comparison_genes.csv", index_col=0)
+		c_genes = pd.read_csv(os.path.join(comparison_dir, "comparison_genes.csv"), index_col=0)
 		c_genes = list(c_genes.iloc[:, 0])
 
 		u_c = u.embedding_
@@ -521,7 +531,8 @@ class ALLSorts(Pipeline):
 		u_t = u.transform(X_t)
 
 		plt.scatter(u_t[:, 0], u_t[:, 1], c="#000000", alpha=0.4)
-		plt.scatter(u_c[:, 0], u_c[:, 1], c=[c_subtypes[r] for r in c_labels], alpha=0.4, marker="x")
+		# TODO: This is a hack to get the label by choosing the first predicted label, should be updated
+		plt.scatter(u_c[:, 0], u_c[:, 1], c=[c_subtypes[r.split(",")[0]] for r in c_labels], alpha=0.4, marker="x")
 
 		transformed_positions = pd.DataFrame(u_c)
 		transformed_positions["label"] = list(c_labels)
