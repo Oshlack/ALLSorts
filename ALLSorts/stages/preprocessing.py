@@ -300,7 +300,7 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 		if self.gene_panel is not None:
 			self.filter_panel(counts)
 		# Update genes based on CPM cutoff
-		elif self.filter_genes:
+		if self.filter_genes:
 			self.filter_cpm(counts, y)
 
 		counts = counts[self.genes]
