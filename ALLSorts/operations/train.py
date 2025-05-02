@@ -11,10 +11,9 @@ Imports
 ---------------------------------------------------------------------------------------------------------------------'''
 
 import os
-
+from typing import Optional, List
 '''  Internal '''
-from ALLSorts.common import message, create_dir, _flat_hierarchy
-from ALLSorts.user import UserInput
+from ALLSorts.common import message, create_dir, get_hierarchy, root_dir
 # ALLSorts pipeline and stages
 from ALLSorts.pipeline import ALLSorts
 from ALLSorts.stages.preprocessing import Preprocessing
@@ -53,214 +52,319 @@ current_cv = 1
 ''' --------------------------------------------------------------------------------------------------------------------
 Functions
 ---------------------------------------------------------------------------------------------------------------------'''
+def train(
+    samples: pd.DataFrame,
+    labels: pd.Series,
+    cv: int = 5,
+    gcv: int = 5,
+	hierarchy: str = None,
+	gene_panel: Optional[List[str]] = None,
+	*,
+    model_dir: Optional[str] = None,
+	save_model: bool = False,
+    save_counts: bool = False,
+	save_grid_results: bool = False,
+	payg: bool = False,
+	baseline: bool = False,
+	n_jobs: int = 1,
+	verbose: bool = False,
+):
 
-def train(ui=False):
+    """Train an ALLSorts model with cross-validation.
 
-	''' TRAINING A MODEL (OUTER LOOP)
-		--
-		This operation requires two steps:
-		1. With a tuned estimator returned from inner loop, calibrate optimal thresholds.
-		2. Score this method
-		3. Train a final model, using the average of the final thresholds.
-	'''
+    Parameters
+    ----------
+    model_dir : str
+        Directory to save model files
+    samples : pd.DataFrame
+        Training samples with genes as columns
+    labels : pd.Series 
+        Training labels corresponding to samples
+    cv : int, optional
+        Number of cross-validation folds, by default 5
+    gcv : int, optional
+        Number of grid search cross-validation folds, by default 5
+    """
 
-	message("Cross Validation (this will take awhile):", level=2)
+    '''  hierarchy check '''
+    if not hierarchy:
+        hierarchy = get_hierarchy([str(root_dir())+"/models/hierarchies/phenocopy.txt",
+								   str(root_dir())+"/models/hierarchies/flat.txt"])
+    training_params = {
+		"model_dir": model_dir,
+        "save_model": save_model,
+        "save_counts": save_counts,
+		"save_grid_results": save_grid_results,
+        "payg": payg,
+        "baseline": baseline,
+        "n_jobs": n_jobs,
+        "verbose": verbose,
+    }
 
-	''' Create results path '''
-	search_path = os.path.join(ui.model_dir, "gridsearch")
-	create_dir([ui.model_dir, search_path])
+    message("Cross Validation (this will take awhile):", level=2)
+    if save_grid_results:
+        ''' Create results path '''
+        search_path = os.path.join(model_dir, "gridsearch")
+        create_dir([model_dir, search_path])
 
-	''' CV results storage '''
-	thresholds_cv = {}
-	results_cv = {"accuracy": [], "precision": [], "recall": [], "f1": []}
+    ''' CV results storage '''
+    thresholds_cv = {}
+    results_cv = {"accuracy": [], "precision": [], "recall": [], "f1": []}
 
-	'''Prepare for CV'''
-	subtypes = list(ui.labels.unique())
-	global fold_predictions, grid_total
-	fold_predictions = pd.DataFrame(columns=["cv", "grid", "hierarchy", "standardisation", "chrom_feature",
-											 "fusion_feature", "iamp21_feature", "centroid"] +
-											subtypes + ["acc", "f1"])
-	grid_total = ui.gcv
+    '''Prepare for CV'''
+    subtypes = list(labels.unique())
+    global fold_predictions, grid_total
+    fold_predictions = pd.DataFrame(columns=["cv", "grid", "hierarchy", "standardisation", "chrom_feature",
+                                            "fusion_feature", "iamp21_feature", "centroid"] +
+                                            subtypes + ["acc", "f1"])
+    grid_total = gcv
 
-	'''CV Loop'''
-	for fold in range(1, ui.cv + 1):
+    '''CV Loop'''
+    for fold in range(1, cv + 1):
 
-		message("Fold: " + str(fold))
+        message("Fold: " + str(fold))
 
-		'''Outer loop - Fold Results'''
-		seed = np.random.randint(1, 1000)
-		x_train, x_test, y_train, y_test = train_test_split(ui.samples, ui.labels,
-															stratify=ui.labels,
+        '''Outer loop - Fold Results'''
+        seed = np.random.randint(1, 1000)
+        x_train, x_test, y_train, y_test = train_test_split(samples, labels,
+															stratify=labels,
 															test_size=0.2,
 															random_state=seed)
 
-		''' Inner loop - hyperparameter tuning '''
-		allsorts_clf_fold = _tune(ui, x_train, y_train, fold=fold)  # This is the best estimator
-		probabilities = allsorts_clf_fold.predict_proba(x_test, parents=True)
-		f_hierarchy = allsorts_clf_fold.steps[-1][-1].f_hierarchy
+        ''' Inner loop - hyperparameter tuning '''
+        allsorts_clf_fold = _tune(          # This is the best estimator
+            x_train=x_train,
+            y_train=y_train,
+            fold=fold,
+            gcv=gcv,
+            cv=cv,
+            gene_panel=gene_panel,
+            input_hierarchy=hierarchy,
+            **training_params,
 
-		''' Optimise Prediction Thresholds '''
-		thresholds = fit_thresholds(probabilities, f_hierarchy, y_test)
-		for subtype, fold_thresh in thresholds.items():
-			if subtype in thresholds_cv.keys():
-				thresholds_cv[subtype].append(fold_thresh)
-			else:
-				thresholds_cv[subtype] = [fold_thresh]
+        )
+        probabilities = allsorts_clf_fold.predict_proba(x_test, parents=True)
+        f_hierarchy = allsorts_clf_fold.steps[-1][-1].f_hierarchy
 
-		''' Score fold '''
-		allsorts_clf_fold.steps[-1][-1].thresholds = thresholds
-		y_pred = allsorts_clf_fold.predict(x_test, parents=True)
-		results_cv = _score_fold(results_cv, y_test, y_pred, subtypes)
+        ''' Optimise Prediction Thresholds '''
+        thresholds = fit_thresholds(probabilities, f_hierarchy, y_test)
+        for subtype, fold_thresh in thresholds.items():
+            if subtype in thresholds_cv.keys():
+                thresholds_cv[subtype].append(fold_thresh)
+            else:
+                thresholds_cv[subtype] = [fold_thresh]
 
-		'''Increment CV'''
-		global current_cv, current_grid
-		current_cv += 1
-		current_grid = 1
+        ''' Score fold '''
+        allsorts_clf_fold.steps[-1][-1].thresholds = thresholds
+        y_pred = allsorts_clf_fold.predict(x_test, parents=True)
+        results_cv = _score_fold(results_cv, y_test, y_pred, subtypes)
 
-	''' Train final model using all samples '''
-	allsorts_clf = _tune(ui, ui.samples, ui.labels)
+        '''Increment CV'''
+        global current_cv, current_grid
+        current_cv += 1
+        current_grid = 1
 
-	if ui.payg:
-		fold_predictions.to_csv("fold_predictons.csv")
+    ''' Train final model using all samples '''
+    allsorts_clf = _tune(
+        x_train=samples,
+        y_train=labels,
+		fold="all",
+        gcv=gcv,
+        cv=cv,
+        gene_panel=gene_panel,
+        input_hierarchy=hierarchy,
+        **training_params,
+    )
+    if payg and save_grid_results:
+        fold_predictions.to_csv("fold_predictons.csv")
 
-	''' Average thresholds '''
-	thresholds = {}
-	for subtype, sub_thresh in thresholds_cv.items():
-		thresholds[subtype] = round(sum(sub_thresh) / len(sub_thresh), 4)
+    ''' Average thresholds '''
+    thresholds = {}
+    for subtype, sub_thresh in thresholds_cv.items():
+        thresholds[subtype] = round(sum(sub_thresh) / len(sub_thresh), 4)
 
-	allsorts_clf.steps[-1][-1].thresholds = thresholds
+    allsorts_clf.steps[-1][-1].thresholds = thresholds
 
-	''' Save results and model '''
-	_save_all(results_cv, allsorts_clf, ui)
-
-
-def _tune(ui: UserInput, x_train, y_train, fold="all"):
-
-	''' TUNING A MODEL (INNER LOOP)
-		--
-		This operation requires two steps:
-		1. Construct a pipeline using the ALLSorts class (A Sklearn pipeline extension).
-		2. Gridsearch the parameter space that is outlined.
-
-		Currently this is achieved by editing this function. Although, in future, this will be included within a
-		a passable JSON file that contains the below. Given that this is likely only to be run once in a blue moon,
-		this is not a priority.
-
-		For those wishing to use the ALLSorts model, with some substitutions of algorithms, simply edit this file after
-		making a copy of the original (save it somewhere so you can always revert). Note, setting up an ALLSorts
-		pipeline and grid search is identical to setting up a usual sklearn pipeline.
-
-		For more information on how to achieve this visit:
-		https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html
-		https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
-	'''
-
-
-	''' Build up the parameter arguments. For each hierarchy, we need a new parameter dict. '''
-	allsorts_params = []
-
-	for hierarchy in ui.hierarchy:
-
-		''' Start building in the novel features '''
-
-		# Fusions
-		fusion_list = ["BCR_ABL1", "ETV6_RUNX1", "TCF3_PBX1", "TCF3_HLF"]
-
-		# Base Model and params
-		lr = LogisticRegression(penalty="l1", solver="liblinear", max_iter=500,
-								multi_class="auto", class_weight="balanced")
-
-		lr_params = [{"C": 0.3}]
-		classifier = HierarchicalClassifier()
-
-		# Build a new parameter for this hierarchy
-		allsorts_params += [
-			{
-				'standardisation': [Scaler(scaler="std")],
-				'centroids': [CentroidCreate(hierarchy=hierarchy, distance_function=euclidean_distances)],
-				'feature_select': [FeatureSelection(hierarchy=hierarchy, method="all", test=False)],
-				'feature_create__chrom_feature': [True],
-				'feature_create__iamp21_feature': [True],
-				'feature_create__fusion_feature': [True],
-				'train_model__hierarchy': [hierarchy],
-				'train_model__model': [lr],
-				'train_model__params': lr_params
-			}
-		]
-
-		if ui.baseline:
-			allsorts_params += [
-				{
-					'standardisation': ["passthrough"],
-					'centroids': ["passthrough"],
-					'feature_select': [FeatureSelection(hierarchy=hierarchy, method="all", test=False)],
-					'feature_create__chrom_feature': [False],
-					'feature_create__iamp21_feature': [False],
-					'feature_create__fusion_feature': [False],
-					'train_model__hierarchy': [hierarchy],
-					'train_model__model': [lr],
-					'train_model__params': lr_params
-				}
-			]
-
-	''' What is the most efficient way to parallelise this '''
-	training_x_models = len(list(ParameterGrid(allsorts_params)))
-
-	if training_x_models*ui.gcv >= ui.n_jobs and not ui.payg:
-		grid_jobs = ui.n_jobs
-		stage_jobs = 1
-		scoring = "balanced_accuracy"
-	else:
-		grid_jobs = 1
-		stage_jobs = ui.n_jobs
-		scoring = b_accuracy
-
-	''' Create Pipeline '''
-	allsorts_pipe = ALLSorts([("preprocess", Preprocessing(filter_genes=True, norm="TMM", gene_panel=ui.gene_panel)),
-							  ("feature_create", FeatureCreation(n_jobs=stage_jobs, kernel_div=30, fusions=fusion_list)),
-							  ("standardisation", Scaler()),
-							  ("feature_select", FeatureSelection()),
-							  ("centroids", CentroidCreate()),
-							  ("train_model", classifier)], verbose=ui.verbose)
-
-	''' Inform the user about the number of models being trained '''
-	if fold == 1:
-		message("Important: Training " + str(training_x_models) + " models (" +
-				str(ui.gcv * ui.cv * training_x_models) + " with cross validation).", important=True)
-
-	''' Perform Grid Search - Likely to take some time. '''
-	allsorts_grid = GridSearchCV(allsorts_pipe, param_grid=allsorts_params,
-								 cv=ui.gcv, n_jobs=grid_jobs,
-								 scoring=scoring).fit(x_train, y_train)
-
-	grid_results = _grid_save(allsorts_grid)
-	grid_results.to_csv(os.path.join(ui.model_dir, "gridsearch", "gridsearch_fold"+str(fold)+".csv"))
-
-	''' Pick the estimator that maximised the score in our gridsearchcv '''
-	allsorts_clf = allsorts_grid.best_estimator_
-
-	return allsorts_clf
+    ''' Save results and model '''
+    if save_model == True:
+        _save_all(
+            results_cv=results_cv,
+            allsorts_clf=allsorts_clf,
+            cv=cv,
+            model_dir=model_dir,
+            save_counts=save_counts,
+            samples=samples,
+            labels=labels,
+        )
+    else:
+        return allsorts_clf
 
 
-def _save_all(results_cv, allsorts_clf, ui):
+def _tune(
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    gcv: int,
+    cv: int,
+    input_hierarchy,
+	gene_panel: Optional[List[str]] = None,
+    fold: str = "all",
+    *,
+    baseline: bool = False,
+    n_jobs: int = 1,
+    payg: bool = False,
+	verbose: bool = False,
+	model_dir: str = None,
+	save_grid_results: bool = True,
+	**_,
+):
+
+    ''' TUNING A MODEL (INNER LOOP)
+        --
+        This operation requires two steps:
+        1. Construct a pipeline using the ALLSorts class (A Sklearn pipeline extension).
+        2. Gridsearch the parameter space that is outlined.
+
+        Currently this is achieved by editing this function. Although, in future, this will be included within a
+        a passable JSON file that contains the below. Given that this is likely only to be run once in a blue moon,
+        this is not a priority.
+
+        For those wishing to use the ALLSorts model, with some substitutions of algorithms, simply edit this file after
+        making a copy of the original (save it somewhere so you can always revert). Note, setting up an ALLSorts
+        pipeline and grid search is identical to setting up a usual sklearn pipeline.
+
+        For more information on how to achieve this visit:
+        https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html
+        https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GridSearchCV.html
+    '''
+
+
+    ''' Build up the parameter arguments. For each hierarchy, we need a new parameter dict. '''
+    allsorts_params = []
+
+    for hierarchy in input_hierarchy:
+
+        ''' Start building in the novel features '''
+
+        # Fusions
+        fusion_list = ["BCR_ABL1", "ETV6_RUNX1", "TCF3_PBX1", "TCF3_HLF"]
+
+        # Base Model and params
+        lr = LogisticRegression(penalty="l1", solver="liblinear", max_iter=500,
+                                multi_class="auto", class_weight="balanced")
+
+        lr_params = [{"C": 0.3}]
+        classifier = HierarchicalClassifier()
+
+        # Build a new parameter for this hierarchy
+        allsorts_params += [
+            {
+                'standardisation': [Scaler(scaler="std")],
+                'centroids': [CentroidCreate(hierarchy=hierarchy, distance_function=euclidean_distances)],
+                'feature_select': [FeatureSelection(hierarchy=hierarchy, method="all", test=False)],
+                'feature_create__chrom_feature': [True],
+                'feature_create__iamp21_feature': [True],
+                'feature_create__fusion_feature': [True],
+                'train_model__hierarchy': [hierarchy],
+                'train_model__model': [lr],
+                'train_model__params': lr_params
+            }
+        ]
+
+        if baseline:
+            allsorts_params += [
+                {
+                    'standardisation': ["passthrough"],
+                    'centroids': ["passthrough"],
+                    'feature_select': [FeatureSelection(hierarchy=hierarchy, method="all", test=False)],
+                    'feature_create__chrom_feature': [False],
+                    'feature_create__iamp21_feature': [False],
+                    'feature_create__fusion_feature': [False],
+                    'train_model__hierarchy': [hierarchy],
+                    'train_model__model': [lr],
+                    'train_model__params': lr_params
+                }
+            ]
+
+    ''' What is the most efficient way to parallelise this '''
+    training_x_models = len(list(ParameterGrid(allsorts_params)))
+
+    if training_x_models*gcv >= n_jobs and not payg:
+        grid_jobs = n_jobs
+        stage_jobs = 1
+        scoring = "balanced_accuracy"
+    else:
+        grid_jobs = 1
+        stage_jobs = n_jobs
+        scoring = b_accuracy
+
+    ''' Create Pipeline '''
+    allsorts_pipe = ALLSorts([("preprocess", Preprocessing(filter_genes=True, norm="TMM", gene_panel=gene_panel)),
+                                ("feature_create", FeatureCreation(n_jobs=stage_jobs, kernel_div=30, fusions=fusion_list)),
+                                ("standardisation", Scaler()),
+                                ("feature_select", FeatureSelection()),
+                                ("centroids", CentroidCreate()),
+                                ("train_model", classifier)], verbose=verbose)
+
+    ''' Inform the user about the number of models being trained '''
+    if fold == 1:
+        message("Important: Training " + str(training_x_models) + " models (" +
+                str(gcv * cv * training_x_models) + " with cross validation).", important=True)
+
+    ''' Perform Grid Search - Likely to take some time. '''
+    allsorts_grid = GridSearchCV(allsorts_pipe, param_grid=allsorts_params,
+                                    cv=gcv, n_jobs=grid_jobs,
+                                    scoring=scoring).fit(x_train, y_train)
+
+    grid_results = _grid_save(allsorts_grid)
+    if save_grid_results:
+        grid_results.to_csv(os.path.join(model_dir, "gridsearch", "gridsearch_fold"+str(fold)+".csv"))
+
+    ''' Pick the estimator that maximised the score in our gridsearchcv '''
+    allsorts_clf = allsorts_grid.best_estimator_
+
+    return allsorts_clf
+
+
+def _save_counts(
+    allsorts_clf: ALLSorts,
+    samples: pd.DataFrame,
+    labels: pd.Series,
+    save_path: str,
+):
+    p_counts = allsorts_clf.transform(samples)
+    p_counts["True"] = labels
+    p_counts["counts"].to_csv(save_path)
+
+
+def _save_all(
+    results_cv: pd.DataFrame,
+    allsorts_clf: ALLSorts,
+	cv: int,
+	model_dir: str,
+	save_counts: bool = False,
+    samples: Optional[pd.DataFrame] = None,
+    labels: Optional[pd.Series] = None,
+):
 
 	""" Save the scores, model, and processed counts """
 
 	'''Save Scores'''
-	scores = pd.DataFrame(results_cv, index=list(range(1, ui.cv + 1)))
-	scores.to_csv(os.path.join(ui.model_dir, "cross_val_results.csv"))
-	save_path_model = os.path.join(ui.model_dir, "allsorts.pkl.gz")
+	scores = pd.DataFrame(results_cv, index=list(range(1, cv + 1)))
+	scores.to_csv(os.path.join(model_dir, "cross_val_results.csv"))
+	save_path_model = os.path.join(model_dir, "allsorts.pkl.gz")
 
 	'''Save Model'''
 	message("Saving model to: " + save_path_model)
 	allsorts_clf.save(path=save_path_model)
 
 	''' Take the final model and save the processed counts as a csv. '''
-	if ui.counts:
-		p_counts = allsorts_clf.transform(ui.samples)
-		p_counts["True"] = ui.labels
-		p_counts["counts"].to_csv(os.path.join(ui.model_dir, "normed_counts.csv"))
-
+	if save_counts:
+		_save_counts(
+			allsorts_clf=allsorts_clf,
+			samples=samples,
+			labels=labels,
+			save_path=os.path.join(model_dir, "normed_counts.csv")
+		)
 
 def _score_fold(results_cv, y_test, y_pred, subtypes):
 

@@ -239,7 +239,7 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 			self,
 			filter_genes: bool = True,
 			norm: str = "TMM",
-			gene_panel: Optional[List] = None,
+			gene_panel: Optional[List[str]] = None,
 	):
 		self.filter_genes = filter_genes
 		self.norm = norm

@@ -12,6 +12,7 @@ Imports
 
 ''' External '''
 import os
+import ast
 from pathlib import Path
 
 ''' --------------------------------------------------------------------------------------------------------------------
@@ -205,3 +206,18 @@ def create_dir(path):
             os.mkdir(path)
         except OSError:
             pass
+
+
+def get_hierarchy(paths):
+    """
+    Read and parse hierarchy files from the given paths.
+
+    This function reads the hierarchy files and returns a dictionary representation of the hierarchy.
+
+    """
+    hierarchies = []
+    for hierarchy in paths:
+        supplied = open(hierarchy).read()
+        hierarchies.append(ast.literal_eval(supplied))
+
+    return hierarchies
