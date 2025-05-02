@@ -14,7 +14,7 @@ import os
 
 '''  Internal '''
 from ALLSorts.common import message, create_dir, _flat_hierarchy
-
+from ALLSorts.user import UserInput
 # ALLSorts pipeline and stages
 from ALLSorts.pipeline import ALLSorts
 from ALLSorts.stages.preprocessing import Preprocessing
@@ -134,7 +134,7 @@ def train(ui=False):
 	_save_all(results_cv, allsorts_clf, ui)
 
 
-def _tune(ui, x_train, y_train, fold="all"):
+def _tune(ui: UserInput, x_train, y_train, fold="all"):
 
 	''' TUNING A MODEL (INNER LOOP)
 		--
@@ -216,7 +216,7 @@ def _tune(ui, x_train, y_train, fold="all"):
 		scoring = b_accuracy
 
 	''' Create Pipeline '''
-	allsorts_pipe = ALLSorts([("preprocess", Preprocessing(filter_genes=True, norm="TMM")),
+	allsorts_pipe = ALLSorts([("preprocess", Preprocessing(filter_genes=True, norm="TMM", gene_panel=ui.gene_panel)),
 							  ("feature_create", FeatureCreation(n_jobs=stage_jobs, kernel_div=30, fusions=fusion_list)),
 							  ("standardisation", Scaler()),
 							  ("feature_select", FeatureSelection()),

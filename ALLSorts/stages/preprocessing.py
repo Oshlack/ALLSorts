@@ -10,6 +10,8 @@
 Imports
 ---------------------------------------------------------------------------'''
 
+from typing import Optional, List
+
 ''' Internal '''
 from ALLSorts.common import message
 
@@ -212,11 +214,19 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 	__________
 	method : str
 		The method used to normalise (currently, only TMM)
+	filter_genes : bool
+		Whether to filter genes based on CPM cutoff
+	norm : str
+		Normalization method to use
+	gene_panel : list
+		List of genes to use for filtering (optional)
 
 	Methods
 	-------
 	filter_cpm(counts, y)
 		filter genes using a CPM cutoff (each sample avg. 10 reads).
+	filter_panel(counts)
+		filter genes using the provided gene panel.
 	fit(counts, y)
 		Get all preprocessing parameters relative to the training set.
 	transform(counts)
@@ -225,9 +235,16 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 		Apply fit and then transform.
 	"""
 
-	def __init__(self, filter_genes=True, norm="TMM"):
+	def __init__(
+			self,
+			filter_genes: bool = True,
+			norm: str = "TMM",
+			gene_panel: Optional[List] = None,
+	):
 		self.filter_genes = filter_genes
 		self.norm = norm
+		self.gene_panel = gene_panel
+		self.genes = None
 
 	def _filter(self, gene, cutoff, sample_no):
 		
@@ -243,9 +260,33 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 		filtered_genes = cpm.apply(self._filter, axis=0, cutoff=cutoff, sample_no=min_samples)
 		self.genes = list(filtered_genes.dropna().index)
 
-	def fit(self, counts, y):
+	def filter_panel(self, counts):
+		"""Filter genes using the provided gene panel.
 
-		""" Get all preprocessing parameters relative to the training set.
+		Parameters
+		__________
+		counts: Pandas DataFrame
+			The counts matrix (samples/rows x genes/columns)
+		"""
+		if self.gene_panel is not None:
+			# Convert gene panel to set for faster lookup
+			panel_set = set(self.gene_panel)
+			# Find intersection of panel genes and available genes
+			available_panel_genes = list(set(counts.columns) & panel_set)
+
+			if len(available_panel_genes) == 0:
+				message("Error: None of the genes in the panel were found in the data.", level="e")
+				raise ValueError("No panel genes found in data")
+
+			if len(available_panel_genes) < len(self.gene_panel):
+				missing_genes = set(self.gene_panel) - set(available_panel_genes)
+				message(f"Note: {len(missing_genes)} genes from panel not found in data: "
+                        f"{', '.join(list(missing_genes)[:5])}{'...' if len(missing_genes) > 5 else ''}", level="w")
+
+			self.genes = available_panel_genes
+
+	def fit(self, counts, y):
+		"""Get all preprocessing parameters relative to the training set.
 
 		Parameters
 		__________
@@ -254,10 +295,15 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 		y: Pandas Series
 			The true labels for the training set.
 		"""
-
-		if self.filter_genes:
+		self.genes = counts.columns.tolist()
+		# Update genes based on gene panel if provided
+		if self.gene_panel is not None:
+			self.filter_panel(counts)
+		# Update genes based on CPM cutoff
+		elif self.filter_genes:
 			self.filter_cpm(counts, y)
-			counts = counts[self.genes]
+
+		counts = counts[self.genes]
 
 		if self.norm == "TMM":
 			self.tmm_norm = TMM().fit(counts)
@@ -265,8 +311,7 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 		return self
 
 	def transform(self, counts, y=False):
-
-		""" Pre-process input counts as per parameters determined by fit().
+		"""Pre-process input counts as per parameters determined by fit().
 
 		Parameters
 		__________
@@ -277,20 +322,21 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 		counts.index = counts.index.astype("str")
 
 		''' Filter genes '''
-		if self.filter_genes:
-			counts = counts.reindex(self.genes, axis=1)
- 
+
+		# Find which genes from self.genes are actually in the counts matrix
+		missing_data_genes = set(counts.columns.tolist()).difference(set(self.genes))
+		if len(missing_data_genes) > 0:
+			message(f"Warning: {len(missing_data_genes)} genes from input data not used: " +
+					f"{', '.join(list(missing_data_genes)[:5])}{'...' if len(missing_data_genes) > 5 else ''}",
+					level="w")
+
+		counts = counts.reindex(self.genes, axis=1)
+
+		message(f"Filtered counts matrix to {len(self.genes)} genes")
+
 		''' Normalise with TMM '''
 		if self.norm == "TMM":
 			counts, scaled_scaling_factors = self.tmm_norm.transform(counts)
-
-		''' Check for missing genes '''
-		missing_genes = list(set(self.genes).difference(counts.columns))
-		if len(missing_genes) > 0:
-			message("Note: " + str(len(missing_genes)) +
-					" genes not found in supplied samples, filling with zeroes.\n" +
-					"This WILL impact classification performance.\n" +
-					"Follow the counts guide on Github (http://) to resolve.", level="w")
 
 		return counts
 

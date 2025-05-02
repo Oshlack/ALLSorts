@@ -19,6 +19,7 @@ from ALLSorts.common import message, root_dir
 import sys, argparse
 import pandas as pd
 import ast
+from typing import List, Optional
 
 ''' --------------------------------------------------------------------------------------------------------------------
 Classes
@@ -54,6 +55,7 @@ class UserInput:
             self.verbose = False if not self.input.verbose else True
             self.force = False if not self.input.force else True
             self.payg = False if not self.input.payg else True
+            self.gene_panel = self._parse_gene_panel(self.input.gene_panel) if self.input.gene_panel else None
 
             '''Misc'''
             self.test = self.input.test
@@ -170,9 +172,64 @@ class UserInput:
                          required=False,
                          help=("""(bool, default=True) Will include B-ALL flag in results."""))
 
+        cli.add_argument('-gene_panel', '-gp',
+                         required=False,
+                         help=("""(str, default=None) A comma-separated list of genes, 
+                                  or path to a file containing gene panel."""))
+
         user_input = cli.parse_args()
         return user_input
 
+    def _parse_gene_panel(self, gene_panel_path: str) -> List[str]:
+        """Parse a gene panel from a file path.
+
+        Parameters
+        ----------
+        gene_panel_path : str
+            Path to the gene panel file. Can be:
+            - A CSV file with one gene per line
+            - A CSV file with a header and gene names in a column
+            - A comma-separated string of gene names
+
+        Returns
+        -------
+        List[str]
+            List of gene names
+
+        Raises
+        ------
+        ValueError
+            If the gene panel file cannot be parsed or is empty
+        """
+        try:
+            # First try to parse as comma-separated string
+            if ',' in gene_panel_path:
+                genes = [g.strip() for g in gene_panel_path.split(',')]
+                if genes:
+                    message(f"Parsed {len(genes)} genes from comma-separated string")
+                    return genes
+
+            # Try to read as CSV file
+            try:
+                # Try reading as single column
+                genes = pd.read_csv(gene_panel_path, squeeze=True).tolist()
+            except:
+                # Try reading as multi-column and take first column
+                df = pd.read_csv(gene_panel_path)
+                genes = df.iloc[:, 0].tolist()
+
+            # Remove any empty strings or NaN values
+            genes = [str(g).strip() for g in genes if str(g).strip()]
+
+            if not genes:
+                raise ValueError("No genes found in panel file")
+
+            message(f"Parsed {len(genes)} genes from file: {gene_panel_path}")
+            return genes
+
+        except Exception as e:
+            message(f"Error parsing gene panel file: {str(e)}", level="e")
+            raise ValueError(f"Could not parse gene panel from: {gene_panel_path}")
 
     def _input_checks(self):
 
@@ -209,19 +266,3 @@ class UserInput:
             hierarchies.append(ast.literal_eval(supplied))
 
         return hierarchies
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
