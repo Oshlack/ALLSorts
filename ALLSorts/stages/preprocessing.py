@@ -256,10 +256,9 @@ class Preprocessing(BaseEstimator, TransformerMixin):
 		cpm = counts.div(counts.sum(axis=1), 0)*1000000
 		cutoff = 10/(counts.sum(axis=1).min()/1000000)
 		min_samples = y.value_counts().min()
-
+		cpm = cpm.loc[:, self.genes]
 		filtered_genes = cpm.apply(self._filter, axis=0, cutoff=cutoff, sample_no=min_samples)
-		filtered_genes = list(filtered_genes.dropna().index)
-		self.genes = list(set(self.genes) & set(filtered_genes))
+		self.genes = list(filtered_genes.dropna().index)
 
 	def filter_panel(self, counts):
 		"""Filter genes using the provided gene panel.
